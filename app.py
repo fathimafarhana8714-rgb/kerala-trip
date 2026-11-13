@@ -4,16 +4,17 @@ from flask import (
     Flask, render_template, request, redirect, url_for,
     flash, session, jsonify, abort, send_from_directory
 )
-from werkzeug.security import check_password_hash
+from werkzeug.security import check_password_hash, generate_password_hash
 from models import (
-    db, User, Property, PropertyImage, Enquiry,
-    VisitRequest, Favorite, PropertyReport, PropertyFeedback
+    db, User, Admin, Owner, District, Property,
+    PropertyPhoto, Review, Favorite, Enquiry, VisitRequest, PropertyReport
 )
 from seed_data import seed_database, KERALA_DISTRICTS
 from districts_data import KERALA_DISTRICTS_INFO
 from helpers import (
-    get_current_user, login_required, role_required,
-    save_uploaded_file, get_smart_recommendations
+    get_current_user, get_current_admin, login_required,
+    admin_required, role_required, save_uploaded_file,
+    calculate_smart_match, get_smart_recommendations
 )
 
 app = Flask(__name__)
@@ -25,26 +26,36 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024 # 16 MB max upload
 
 db.init_app(app)
 
-# Inject current user, language, districts, and favorites into all Jinja templates
+# Inject current user, admin, language, districts, and counts into all Jinja templates
 @app.context_processor
 def inject_global_vars():
     curr_user = get_current_user()
+    curr_admin = get_current_admin()
     lang = session.get('lang', 'en')
     
     # User's favorited property IDs
     fav_ids = set()
     if curr_user:
-        fav_ids = {f.property_id for f in Favorite.query.filter_by(user_id=curr_user.id).all()}
+        fav_ids = {f.property_id for f in Favorite.query.filter_by(user_id=curr_user.user_id).all()}
     else:
         fav_ids = set(session.get('guest_favorites', []))
         
     compare_ids = session.get('compare_ids', [])
 
+    # Calculate actual listing count for each district
+    district_counts = {}
+    for d in District.query.all():
+        cnt = Property.query.filter_by(district_id=d.district_id, availability='Available').count()
+        district_counts[d.district_name] = cnt
+
     return {
         'current_user': curr_user,
+        'current_admin': curr_admin,
+        'is_admin_logged_in': bool(curr_admin),
         'current_lang': lang,
         'districts_info': KERALA_DISTRICTS_INFO,
         'kerala_districts': KERALA_DISTRICTS,
+        'district_counts': district_counts,
         'fav_ids': fav_ids,
         'compare_ids': compare_ids,
         'now': datetime.now(timezone.utc)
@@ -82,72 +93,63 @@ def admin_dashboard_redirect():
 
 @app.route('/')
 def index():
-    # Featured properties for hero carousel
+    # Featured properties
     featured_properties = Property.query.filter_by(
-        approval_status='approved',
-        status='Available',
+        availability='Available',
         is_featured=True
-    ).order_by(Property.id.desc()).limit(6).all()
+    ).order_by(Property.property_id.desc()).limit(6).all()
 
-    # Fallback to recent if not enough featured
     if len(featured_properties) < 3:
         featured_properties = Property.query.filter_by(
-            approval_status='approved',
-            status='Available'
-        ).order_by(Property.id.desc()).limit(6).all()
+            availability='Available'
+        ).order_by(Property.property_id.desc()).limit(6).all()
 
     # Recent properties
     recent_properties = Property.query.filter_by(
-        approval_status='approved',
-        status='Available'
-    ).order_by(Property.id.desc()).limit(6).all()
+        availability='Available'
+    ).order_by(Property.property_id.desc()).limit(6).all()
 
-    # Budget-friendly rental homes (< Rs 22,000)
+    # Budget-friendly rental homes (<= Rs 20,000)
     budget_properties = Property.query.filter(
-        Property.approval_status == 'approved',
-        Property.status == 'Available',
-        Property.monthly_rent <= 22000
-    ).order_by(Property.monthly_rent.asc()).limit(6).all()
-
-    # Calculate actual listing count for each district
-    district_counts = {}
-    for d in KERALA_DISTRICTS:
-        cnt = Property.query.filter_by(district=d, approval_status='approved', status='Available').count()
-        district_counts[d] = cnt
+        Property.availability == 'Available',
+        Property.rent <= 20000
+    ).order_by(Property.rent.asc()).limit(6).all()
 
     return render_template(
         'index.html',
         featured_properties=featured_properties,
         recent_properties=recent_properties,
-        budget_properties=budget_properties,
-        district_counts=district_counts
+        budget_properties=budget_properties
     )
 
 
 @app.route('/properties')
 def properties():
     query_text = request.args.get('q', '').strip()
-    district = request.args.get('district', '').strip()
+    district_param = request.args.get('district', '').strip()
     property_type = request.args.get('property_type', '').strip()
     bhk = request.args.get('bhk', '').strip()
     min_rent = request.args.get('min_rent', '').strip()
     max_rent = request.args.get('max_rent', '').strip()
+    area_pref = request.args.get('area', '').strip()
     furnishing = request.args.get('furnishing', '').strip()
     parking = request.args.get('parking', '').strip()
     pet_friendly = request.args.get('pet_friendly', '').strip()
     verified_only = request.args.get('verified_only', '').strip()
-    sort_by = request.args.get('sort', 'newest').strip()
+    sort_by = request.args.get('sort', 'smart').strip() # Default to smart matching when searched
 
-    base_query = Property.query.filter_by(approval_status='approved')
+    base_query = Property.query
 
-    # Status: default to available or show all approved
+    # Status: default to available or show all
     show_all_status = request.args.get('include_rented', '0')
     if show_all_status != '1':
-        base_query = base_query.filter(Property.status == 'Available')
+        base_query = base_query.filter(Property.availability == 'Available')
 
-    # Apply filters
-    if district:
-        base_query = base_query.filter(Property.district.ilike(f"%{district}%"))
+    # Apply district filter
+    if district_param:
+        dist_record = District.query.filter(District.district_name.ilike(f"%{district_param}%")).first()
+        if dist_record:
+            base_query = base_query.filter(Property.district_id == dist_record.district_id)
 
     if property_type:
         base_query = base_query.filter(Property.property_type.ilike(f"%{property_type}%"))
@@ -164,13 +166,13 @@ def properties():
 
     if min_rent:
         try:
-            base_query = base_query.filter(Property.monthly_rent >= int(min_rent))
+            base_query = base_query.filter(Property.rent >= int(min_rent))
         except ValueError:
             pass
 
     if max_rent:
         try:
-            base_query = base_query.filter(Property.monthly_rent <= int(max_rent))
+            base_query = base_query.filter(Property.rent <= int(max_rent))
         except ValueError:
             pass
 
@@ -180,9 +182,6 @@ def properties():
     if parking:
         base_query = base_query.filter(Property.parking.ilike(f"%{parking}%"))
 
-    if pet_friendly == '1':
-        base_query = base_query.filter(Property.pet_policy.ilike('%allowed%'))
-
     if verified_only == '1':
         base_query = base_query.filter(Property.is_verified == True)
 
@@ -191,47 +190,89 @@ def properties():
         base_query = base_query.filter(
             db.or_(
                 Property.title.ilike(term),
-                Property.city_town.ilike(term),
-                Property.locality.ilike(term),
-                Property.full_address.ilike(term),
+                Property.town.ilike(term),
+                Property.address.ilike(term),
                 Property.property_code.ilike(term),
-                Property.nearby_landmarks.ilike(term)
+                Property.landmarks.ilike(term)
             )
         )
 
-    # Sorting
-    if sort_by == 'lowest_rent':
-        base_query = base_query.order_by(Property.monthly_rent.asc())
-    elif sort_by == 'highest_rent':
-        base_query = base_query.order_by(Property.monthly_rent.desc())
-    elif sort_by == 'area_desc':
-        base_query = base_query.order_by(Property.sqft_area.desc())
-    else: # newest
-        base_query = base_query.order_by(Property.id.desc())
-
+    # Execute query
     properties_list = base_query.all()
     exact_matches_count = len(properties_list)
 
-    # Smart Recommendation System:
-    # If exact matches are zero or very low (< 2), rank and recommend alternative homes!
-    recommended_properties = []
-    if exact_matches_count < 2:
-        calc_rent = None
-        if min_rent and max_rent:
-            calc_rent = (int(min_rent) + int(max_rent)) / 2
-        elif max_rent:
-            calc_rent = int(max_rent)
-        elif min_rent:
-            calc_rent = int(min_rent)
+    # Parse numeric targets for Smart Matching
+    budget_val = None
+    if max_rent:
+        try:
+            budget_val = int(max_rent)
+        except ValueError:
+            pass
+    elif min_rent:
+        try:
+            budget_val = int(min_rent)
+        except ValueError:
+            pass
 
+    bhk_val = None
+    if bhk:
+        try:
+            bhk_val = int(bhk)
+        except ValueError:
+            pass
+
+    area_val = None
+    if area_pref:
+        try:
+            area_val = int(area_pref)
+        except ValueError:
+            pass
+
+    # Check if user entered any preferences for Smart Matching
+    has_preferences = bool(district_param or query_text or bhk_val or budget_val or area_val)
+
+    # Calculate dynamic Smart Match percentage for every property
+    for prop in properties_list:
+        if has_preferences:
+            score = calculate_smart_match(
+                prop,
+                pref_district=district_param,
+                max_budget=budget_val,
+                pref_bhk=bhk_val,
+                pref_area=area_val,
+                locality_query=query_text
+            )
+            prop.match_percentage = score
+        else:
+            prop.match_percentage = None
+
+    # Sorting
+    if sort_by == 'lowest_rent':
+        properties_list.sort(key=lambda p: p.rent)
+    elif sort_by == 'highest_rent':
+        properties_list.sort(key=lambda p: p.rent, reverse=True)
+    elif sort_by == 'area_desc':
+        properties_list.sort(key=lambda p: p.area, reverse=True)
+    elif sort_by == 'newest':
+        properties_list.sort(key=lambda p: p.property_id, reverse=True)
+    else: # 'smart'
+        if has_preferences:
+            properties_list.sort(key=lambda p: (getattr(p, 'match_percentage', 0) or 0), reverse=True)
+        else:
+            properties_list.sort(key=lambda p: p.property_id, reverse=True)
+
+    # Smart Recommendation System:
+    # If exact matches are zero or low (< 2), rank and recommend alternative homes!
+    recommended_properties = []
+    if exact_matches_count < 2 and has_preferences:
         criteria = {
-            'district': district if district else None,
-            'rent': calc_rent,
-            'bhk': bhk if bhk else None,
-            'property_type': property_type if property_type else None,
-            'furnishing': furnishing if furnishing else None
+            'district': district_param if district_param else None,
+            'max_rent': budget_val,
+            'bhk': bhk_val,
+            'area': area_val,
+            'q': query_text if query_text else None
         }
-        exclude_ids = [p.id for p in properties_list]
+        exclude_ids = [p.property_id for p in properties_list]
         recommended_properties = get_smart_recommendations(criteria, exclude_ids=exclude_ids, limit=4)
 
     return render_template(
@@ -239,11 +280,12 @@ def properties():
         properties=properties_list,
         exact_matches_count=exact_matches_count,
         recommended_properties=recommended_properties,
-        selected_district=district,
+        selected_district=district_param,
         selected_bhk=bhk,
         selected_type=property_type,
         min_rent=min_rent,
         max_rent=max_rent,
+        selected_area=area_pref,
         selected_furnishing=furnishing,
         selected_parking=parking,
         pet_friendly=pet_friendly,
@@ -251,6 +293,12 @@ def properties():
         query_text=query_text,
         sort_by=sort_by
     )
+
+
+@app.route('/district/<int:district_id>')
+def district_detail(district_id):
+    district = District.query.get_or_404(district_id)
+    return redirect(url_for('properties', district=district.district_name))
 
 
 @app.route('/property/<int:property_id>')
@@ -263,27 +311,25 @@ def property_detail(property_id, slug=None):
     if property_id in recent:
         recent.remove(property_id)
     recent.insert(0, property_id)
-    session['recently_viewed'] = recent[:6] # keep top 6
+    session['recently_viewed'] = recent[:6]
 
-    # Similar properties in the same or nearby district
+    # Similar properties in the same district or neighboring
     similar_properties = Property.query.filter(
-        Property.approval_status == 'approved',
-        Property.status == 'Available',
-        Property.id != prop.id,
-        Property.district == prop.district
+        Property.availability == 'Available',
+        Property.property_id != prop.property_id,
+        Property.district_id == prop.district_id
     ).limit(3).all()
 
     if len(similar_properties) < 3:
         more_props = Property.query.filter(
-            Property.approval_status == 'approved',
-            Property.status == 'Available',
-            Property.id != prop.id,
-            Property.id.notin_([p.id for p in similar_properties])
+            Property.availability == 'Available',
+            Property.property_id != prop.property_id,
+            ~Property.property_id.in_([p.property_id for p in similar_properties])
         ).limit(3 - len(similar_properties)).all()
         similar_properties.extend(more_props)
 
-    # All photos ordered
-    images = prop.images.order_by(PropertyImage.image_order.asc()).all()
+    # All photos ordered (primary first)
+    images = prop.photos.order_by(PropertyPhoto.is_primary.desc(), PropertyPhoto.photo_id.asc()).all()
 
     return render_template(
         'property_detail.html',
@@ -295,106 +341,8 @@ def property_detail(property_id, slug=None):
 
 
 # -------------------------------------------------------------
-# Interactions: Enquiry, Visit Scheduling, Reporting
+# Interactions: Feedback, Enquiry, Visit Scheduling, Reporting
 # -------------------------------------------------------------
-
-@app.route('/property/<int:property_id>/enquiry', methods=['POST'])
-def submit_enquiry(property_id):
-    prop = Property.query.get_or_404(property_id)
-    curr_user = get_current_user()
-
-    sender_name = request.form.get('sender_name', '').strip()
-    sender_phone = request.form.get('sender_phone', '').strip()
-    sender_email = request.form.get('sender_email', '').strip()
-    message = request.form.get('message', '').strip()
-    move_in_date = request.form.get('move_in_date', 'Immediate').strip()
-    tenant_type = request.form.get('tenant_type', 'Family').strip()
-
-    if not sender_name or not sender_phone or not message:
-        flash("Please provide your name, contact phone number, and enquiry message.", "danger")
-        return redirect(url_for('property_detail', property_id=prop.id))
-
-    enquiry = Enquiry(
-        property_id=prop.id,
-        user_id=curr_user.id if curr_user else None,
-        sender_name=sender_name,
-        sender_phone=sender_phone,
-        sender_email=sender_email if sender_email else (curr_user.email if curr_user else "N/A"),
-        message=message,
-        move_in_date=move_in_date,
-        tenant_type=tenant_type,
-        status='pending'
-    )
-    db.session.add(enquiry)
-    db.session.commit()
-
-    flash(f"Your enquiry has been delivered directly to {prop.owner_name}. The owner will contact you shortly on {sender_phone}.", "success")
-    return redirect(url_for('property_detail', property_id=prop.id))
-
-
-@app.route('/property/<int:property_id>/schedule-visit', methods=['POST'])
-def schedule_visit(property_id):
-    prop = Property.query.get_or_404(property_id)
-    curr_user = get_current_user()
-
-    visitor_name = request.form.get('visitor_name', '').strip()
-    visitor_phone = request.form.get('visitor_phone', '').strip()
-    visitor_email = request.form.get('visitor_email', '').strip()
-    preferred_date = request.form.get('preferred_date', '').strip()
-    preferred_time_slot = request.form.get('preferred_time_slot', 'Morning (9:00 AM - 12:00 PM)').strip()
-    notes = request.form.get('notes', '').strip()
-
-    if not visitor_name or not visitor_phone or not preferred_date:
-        flash("Please provide your name, phone number, and preferred visit date.", "danger")
-        return redirect(url_for('property_detail', property_id=prop.id))
-
-    visit = VisitRequest(
-        property_id=prop.id,
-        user_id=curr_user.id if curr_user else None,
-        visitor_name=visitor_name,
-        visitor_phone=visitor_phone,
-        visitor_email=visitor_email if visitor_email else (curr_user.email if curr_user else "N/A"),
-        preferred_date=preferred_date,
-        preferred_time_slot=preferred_time_slot,
-        notes=notes,
-        status='pending'
-    )
-    db.session.add(visit)
-    db.session.commit()
-
-    flash(f"Property visit appointment requested for {preferred_date} ({preferred_time_slot}). The owner has been notified.", "success")
-    return redirect(url_for('property_detail', property_id=prop.id))
-
-
-@app.route('/property/<int:property_id>/report', methods=['POST'])
-def report_property(property_id):
-    prop = Property.query.get_or_404(property_id)
-    curr_user = get_current_user()
-
-    reporter_name = request.form.get('reporter_name', '').strip()
-    reporter_email = request.form.get('reporter_email', '').strip()
-    reason = request.form.get('reason', 'Inaccurate Details').strip()
-    details = request.form.get('details', '').strip()
-
-    if not reporter_name or not details:
-        flash("Please provide your name and details of the report.", "danger")
-        return redirect(url_for('property_detail', property_id=prop.id))
-
-    report = PropertyReport(
-        property_id=prop.id,
-        user_id=curr_user.id if curr_user else None,
-        reporter_name=reporter_name,
-        reporter_email=reporter_email if reporter_email else "N/A",
-        reason=reason,
-        details=details,
-        status='pending'
-    )
-    db.session.add(report)
-    db.session.commit()
-
-    flash("Thank you for your vigilance. Our quality team will inspect this listing promptly.", "info")
-    return redirect(url_for('property_detail', property_id=prop.id))
-
 
 @app.route('/property/<int:property_id>/feedback', methods=['GET', 'POST'])
 def property_feedback(property_id):
@@ -415,17 +363,33 @@ def property_feedback(property_id):
 
         if not reviewer_name or not comment:
             flash("Please provide your name and your feedback comments.", "danger")
-            return redirect(url_for('property_feedback', property_id=prop.id))
+            return redirect(url_for('property_feedback', property_id=prop.property_id))
 
-        fb = PropertyFeedback(
-            property_id=prop.id,
-            user_id=curr_user.id if curr_user else None,
-            reviewer_name=reviewer_name,
-            reviewer_email=reviewer_email if reviewer_email else (curr_user.email if curr_user else None),
+        # Check or create user if guest
+        user_for_review = curr_user
+        if not user_for_review:
+            # Check if user with that email exists
+            if reviewer_email:
+                user_for_review = User.query.filter_by(email=reviewer_email.lower()).first()
+            if not user_for_review:
+                # Create visitor user entry for foreign key integrity
+                user_for_review = User(
+                    name=reviewer_name,
+                    email=reviewer_email.lower() if reviewer_email else f"visitor_{int(datetime.now().timestamp())}@nestkerala.com",
+                    phone="+91 94470 00000",
+                    role="tenant"
+                )
+                user_for_review.set_password("Guest@123")
+                db.session.add(user_for_review)
+                db.session.flush()
+
+        fb = Review(
+            property_id=prop.property_id,
+            user_id=user_for_review.user_id,
             rating=max(1, min(5, rating)),
-            visit_type=visit_type,
             headline=headline,
-            comment=comment,
+            feedback=comment,
+            visit_type=visit_type,
             water_rating=max(1, min(5, water_rating)),
             location_rating=max(1, min(5, location_rating)),
             landlord_rating=max(1, min(5, landlord_rating)),
@@ -434,13 +398,12 @@ def property_feedback(property_id):
         db.session.add(fb)
         db.session.commit()
 
-        flash(f"Thank you for sharing your feedback on {prop.title}! Your review helps Kerala tenants make informed decisions.", "success")
-        return redirect(url_for('property_feedback', property_id=prop.id))
+        flash(f"Thank you for sharing your feedback on {prop.title}! Your review has been saved.", "success")
+        return redirect(url_for('property_feedback', property_id=prop.property_id))
 
     # GET: fetch all approved feedbacks
-    feedbacks = prop.feedbacks.filter_by(is_approved=True).order_by(PropertyFeedback.id.desc()).all()
+    feedbacks = prop.reviews.filter_by(is_approved=True).order_by(Review.review_date.desc()).all()
 
-    # Calculate sub-averages
     water_avg = round(sum(f.water_rating for f in feedbacks) / len(feedbacks), 1) if feedbacks else 0.0
     location_avg = round(sum(f.location_rating for f in feedbacks) / len(feedbacks), 1) if feedbacks else 0.0
     landlord_avg = round(sum(f.landlord_rating for f in feedbacks) / len(feedbacks), 1) if feedbacks else 0.0
@@ -455,6 +418,103 @@ def property_feedback(property_id):
     )
 
 
+@app.route('/property/<int:property_id>/enquiry', methods=['POST'])
+def submit_enquiry(property_id):
+    prop = Property.query.get_or_404(property_id)
+    curr_user = get_current_user()
+
+    sender_name = request.form.get('sender_name', '').strip()
+    sender_phone = request.form.get('sender_phone', '').strip()
+    sender_email = request.form.get('sender_email', '').strip()
+    message = request.form.get('message', '').strip()
+    move_in_date = request.form.get('move_in_date', 'Immediate').strip()
+    tenant_type = request.form.get('tenant_type', 'Family').strip()
+
+    if not sender_name or not sender_phone or not message:
+        flash("Please provide your name, contact phone number, and enquiry message.", "danger")
+        return redirect(url_for('property_detail', property_id=prop.property_id))
+
+    enquiry = Enquiry(
+        property_id=prop.property_id,
+        user_id=curr_user.user_id if curr_user else None,
+        sender_name=sender_name,
+        sender_phone=sender_phone,
+        sender_email=sender_email if sender_email else (curr_user.email if curr_user else "N/A"),
+        message=message,
+        move_in_date=move_in_date,
+        tenant_type=tenant_type,
+        status='pending'
+    )
+    db.session.add(enquiry)
+    db.session.commit()
+
+    flash(f"Your enquiry has been delivered directly to {prop.owner_name}. The owner will contact you shortly on {sender_phone}.", "success")
+    return redirect(url_for('property_detail', property_id=prop.property_id))
+
+
+@app.route('/property/<int:property_id>/schedule-visit', methods=['POST'])
+def schedule_visit(property_id):
+    prop = Property.query.get_or_404(property_id)
+    curr_user = get_current_user()
+
+    visitor_name = request.form.get('visitor_name', '').strip()
+    visitor_phone = request.form.get('visitor_phone', '').strip()
+    visitor_email = request.form.get('visitor_email', '').strip()
+    preferred_date = request.form.get('preferred_date', '').strip()
+    preferred_time_slot = request.form.get('preferred_time_slot', 'Morning (9:00 AM - 12:00 PM)').strip()
+    notes = request.form.get('notes', '').strip()
+
+    if not visitor_name or not visitor_phone or not preferred_date:
+        flash("Please provide your name, phone number, and preferred visit date.", "danger")
+        return redirect(url_for('property_detail', property_id=prop.property_id))
+
+    visit = VisitRequest(
+        property_id=prop.property_id,
+        user_id=curr_user.user_id if curr_user else None,
+        visitor_name=visitor_name,
+        visitor_phone=visitor_phone,
+        visitor_email=visitor_email if visitor_email else (curr_user.email if curr_user else "N/A"),
+        preferred_date=preferred_date,
+        preferred_time_slot=preferred_time_slot,
+        notes=notes,
+        status='pending'
+    )
+    db.session.add(visit)
+    db.session.commit()
+
+    flash(f"Property visit appointment requested for {preferred_date} ({preferred_time_slot}). The owner has been notified.", "success")
+    return redirect(url_for('property_detail', property_id=prop.property_id))
+
+
+@app.route('/property/<int:property_id>/report', methods=['POST'])
+def report_property(property_id):
+    prop = Property.query.get_or_404(property_id)
+    curr_user = get_current_user()
+
+    reporter_name = request.form.get('reporter_name', '').strip()
+    reporter_email = request.form.get('reporter_email', '').strip()
+    reason = request.form.get('reason', 'Inaccurate Details').strip()
+    details = request.form.get('details', '').strip()
+
+    if not reporter_name or not details:
+        flash("Please provide your name and details of the report.", "danger")
+        return redirect(url_for('property_detail', property_id=prop.property_id))
+
+    report = PropertyReport(
+        property_id=prop.property_id,
+        user_id=curr_user.user_id if curr_user else None,
+        reporter_name=reporter_name,
+        reporter_email=reporter_email if reporter_email else "N/A",
+        reason=reason,
+        details=details,
+        status='pending'
+    )
+    db.session.add(report)
+    db.session.commit()
+
+    flash("Thank you for your vigilance. Our moderation team will inspect this listing promptly.", "info")
+    return redirect(url_for('property_detail', property_id=prop.property_id))
+
 
 # -------------------------------------------------------------
 # Favourites & Side-by-Side Comparison
@@ -466,18 +526,17 @@ def toggle_favorite(property_id):
     curr_user = get_current_user()
 
     if curr_user:
-        fav = Favorite.query.filter_by(user_id=curr_user.id, property_id=prop.id).first()
+        fav = Favorite.query.filter_by(user_id=curr_user.user_id, property_id=prop.property_id).first()
         if fav:
             db.session.delete(fav)
             db.session.commit()
             status = 'removed'
         else:
-            new_fav = Favorite(user_id=curr_user.id, property_id=prop.id)
+            new_fav = Favorite(user_id=curr_user.user_id, property_id=prop.property_id)
             db.session.add(new_fav)
             db.session.commit()
             status = 'added'
     else:
-        # Guest favorites in session
         guest_favs = session.get('guest_favorites', [])
         if property_id in guest_favs:
             guest_favs.remove(property_id)
@@ -498,15 +557,14 @@ def toggle_favorite(property_id):
 def saved_homes():
     curr_user = get_current_user()
     if curr_user:
-        favs = Favorite.query.filter_by(user_id=curr_user.id).order_by(Favorite.id.desc()).all()
+        favs = Favorite.query.filter_by(user_id=curr_user.user_id).order_by(Favorite.id.desc()).all()
         saved_props = [f.property_rel for f in favs if f.property_rel]
     else:
         guest_ids = session.get('guest_favorites', [])
-        saved_props = Property.query.filter(Property.id.in_(guest_ids)).all() if guest_ids else []
+        saved_props = Property.query.filter(Property.property_id.in_(guest_ids)).all() if guest_ids else []
 
-    # Recently viewed
     recent_ids = session.get('recently_viewed', [])
-    recently_viewed = Property.query.filter(Property.id.in_(recent_ids)).all() if recent_ids else []
+    recently_viewed = Property.query.filter(Property.property_id.in_(recent_ids)).all() if recent_ids else []
 
     return render_template(
         'saved_homes.html',
@@ -518,7 +576,6 @@ def saved_homes():
 @app.route('/compare')
 def compare():
     compare_ids = session.get('compare_ids', [])
-    # Allow url query param override e.g. /compare?ids=1,2,3
     query_ids = request.args.get('ids')
     if query_ids:
         try:
@@ -526,7 +583,7 @@ def compare():
         except ValueError:
             pass
 
-    properties = Property.query.filter(Property.id.in_(compare_ids)).limit(3).all() if compare_ids else []
+    properties = Property.query.filter(Property.property_id.in_(compare_ids)).limit(3).all() if compare_ids else []
     return render_template('compare.html', properties=properties)
 
 
@@ -556,154 +613,7 @@ def clear_compare():
 
 
 # -------------------------------------------------------------
-# List Your Property (Submission Workflow)
-# -------------------------------------------------------------
-
-@app.route('/list-property', methods=['GET', 'POST'])
-def list_property():
-    curr_user = get_current_user()
-
-    if request.method == 'POST':
-        title = request.form.get('title', '').strip()
-        district = request.form.get('district', '').strip()
-        city_town = request.form.get('city_town', '').strip()
-        locality = request.form.get('locality', '').strip()
-        full_address = request.form.get('full_address', '').strip()
-        pin_code = request.form.get('pin_code', '').strip()
-        property_type = request.form.get('property_type', '').strip()
-        bhk = request.form.get('bhk', type=int)
-        bathrooms = request.form.get('bathrooms', type=int)
-        balconies = request.form.get('balconies', 1, type=int)
-        sqft_area = request.form.get('sqft_area', type=int)
-        monthly_rent = request.form.get('monthly_rent', type=int)
-        security_deposit = request.form.get('security_deposit', type=int)
-        maintenance = request.form.get('maintenance_charges', 0, type=int)
-        furnishing = request.form.get('furnishing', '').strip()
-        parking = request.form.get('parking', '').strip()
-        water_supply = request.form.get('water_supply', '').strip()
-        electricity = request.form.get('electricity', '').strip()
-        kitchen_type = request.form.get('kitchen_type', '').strip()
-        pet_policy = request.form.get('pet_policy', 'Pets Allowed').strip()
-        tenant_preference = request.form.get('tenant_preference', 'Family Preferred').strip()
-        availability_date = request.form.get('availability_date', 'Immediate').strip()
-        description = request.form.get('description', '').strip()
-        nearby_landmarks = request.form.get('nearby_landmarks', '').strip()
-
-        # Contact Info
-        owner_name = request.form.get('owner_name', '').strip()
-        owner_contact_type = request.form.get('owner_contact_type', 'Individual Owner').strip()
-        contact_phone = request.form.get('contact_phone', '').strip()
-        whatsapp_number = request.form.get('whatsapp_number', '').strip()
-        contact_email = request.form.get('contact_email', '').strip()
-
-        # Validation
-        if not title or not district or not monthly_rent or not security_deposit or not bhk or not sqft_area or not contact_phone:
-            flash("Please fill in all mandatory property, pricing, and contact fields.", "danger")
-            return render_template('list_property.html')
-
-        # Auto-generate unique property code e.g. NK-EKM-2024-912
-        now_utc = datetime.now(timezone.utc)
-        dist_code = district[:3].upper()
-        prop_code = f"NK-{dist_code}-{now_utc.strftime('%y%m')}-{int(now_utc.timestamp()) % 10000}"
-
-        # Generate slug
-        slug = f"{title.lower().replace(' ', '-')[:50]}"
-
-        # Coordinates approximation based on district if not explicitly provided
-        dist_meta = next((d for d in KERALA_DISTRICTS_INFO if d['name'].lower() == district.lower()), None)
-        lat = dist_meta['lat'] if dist_meta else 10.0
-        lng = dist_meta['lng'] if dist_meta else 76.3
-
-        new_prop = Property(
-            property_code=prop_code,
-            title=title,
-            slug=slug,
-            description=description,
-            property_type=property_type,
-            bhk=bhk,
-            bathrooms=bathrooms or 1,
-            balconies=balconies or 0,
-            sqft_area=sqft_area,
-            monthly_rent=monthly_rent,
-            security_deposit=security_deposit,
-            maintenance_charges=maintenance or 0,
-            furnishing=furnishing,
-            parking=parking,
-            water_supply=water_supply,
-            electricity=electricity,
-            kitchen_type=kitchen_type,
-            pet_policy=pet_policy,
-            tenant_preference=tenant_preference,
-            availability_date=availability_date,
-            status='Available',
-            # Registered owners get auto-approved or pending based on admin policy
-            approval_status='approved' if (curr_user and curr_user.is_verified) else 'pending',
-            is_verified=False,
-            is_featured=False,
-            is_sample_demo=False,
-            district=district,
-            city_town=city_town,
-            locality=locality,
-            full_address=full_address,
-            pin_code=pin_code,
-            latitude=lat,
-            longitude=lng,
-            nearby_landmarks=nearby_landmarks,
-            owner_id=curr_user.id if curr_user else None,
-            owner_name=owner_name if owner_name else (curr_user.full_name if curr_user else "Authorized Owner"),
-            owner_contact_type=owner_contact_type,
-            contact_phone=contact_phone,
-            whatsapp_number=whatsapp_number if whatsapp_number else contact_phone,
-            contact_email=contact_email if contact_email else (curr_user.email if curr_user else ""),
-            owner_verified=bool(curr_user and curr_user.is_verified)
-        )
-        db.session.add(new_prop)
-        db.session.flush()
-
-        # Handle Photo Uploads
-        uploaded_files = request.files.getlist('property_photos')
-        saved_count = 0
-        for idx, file in enumerate(uploaded_files):
-            file_url = save_uploaded_file(file, app.config['UPLOAD_FOLDER'])
-            if file_url:
-                caption = "Exterior View" if idx == 0 else f"Interior View {idx}"
-                img = PropertyImage(
-                    property_id=new_prop.id,
-                    image_url=file_url,
-                    caption=caption,
-                    image_order=idx,
-                    is_primary=(idx == 0)
-                )
-                db.session.add(img)
-                saved_count += 1
-
-        # If no photos were uploaded, attach default verified exterior placeholder
-        if saved_count == 0:
-            default_img = PropertyImage(
-                property_id=new_prop.id,
-                image_url="/static/images/hero-kerala.jpg",
-                caption="Exterior Preview",
-                image_order=0,
-                is_primary=True
-            )
-            db.session.add(default_img)
-
-        db.session.commit()
-
-        if new_prop.approval_status == 'pending':
-            flash(f"Property '{title}' submitted successfully! Our administrative team will review your photos and contact info before publishing.", "success")
-        else:
-            flash(f"Property '{title}' is now live on NestKerala!", "success")
-
-        if curr_user and curr_user.is_owner_or_agent():
-            return redirect(url_for('owner_dashboard'))
-        return redirect(url_for('property_detail', property_id=new_prop.id))
-
-    return render_template('list_property.html')
-
-
-# -------------------------------------------------------------
-# User & Owner Authentication Routes
+# User Authentication Routes (Section 4)
 # -------------------------------------------------------------
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -714,39 +624,43 @@ def register():
     if request.method == 'POST':
         full_name = request.form.get('full_name', '').strip()
         email = request.form.get('email', '').strip().lower()
-        password = request.form.get('password', '')
         phone = request.form.get('phone', '').strip()
-        role = request.form.get('role', 'tenant').strip()
-        agency_name = request.form.get('agency_name', '').strip()
+        password = request.form.get('password', '')
+        confirm_password = request.form.get('confirm_password', '')
 
+        # Validation
         if not full_name or not email or not password or not phone:
-            flash("Please fill in all mandatory registration fields.", "danger")
+            flash("Please fill in all mandatory fields.", "danger")
             return render_template('auth/register.html')
 
+        if password != confirm_password:
+            flash("Passwords do not match. Please enter matching passwords.", "danger")
+            return render_template('auth/register.html')
+
+        if len(password) < 6:
+            flash("Password must be at least 6 characters long.", "danger")
+            return render_template('auth/register.html')
+
+        # Check duplicate email
         if User.query.filter_by(email=email).first():
-            flash("An account with that email address already exists. Please sign in.", "warning")
+            flash("An account with that email address already exists. Please log in.", "warning")
             return redirect(url_for('login'))
 
         user = User(
-            full_name=full_name,
+            name=full_name,
             email=email,
             phone=phone,
-            role=role if role in ['tenant', 'owner', 'agent'] else 'tenant',
-            agency_name=agency_name if role == 'agent' else None,
-            is_verified=(role == 'tenant') # Owners/Agents reviewed or verified
+            role='tenant'
         )
         user.set_password(password)
         db.session.add(user)
         db.session.commit()
 
-        # Log user in
-        session['user_id'] = user.id
+        # Log user in securely
+        session['user_id'] = user.user_id
         session['user_role'] = user.role
-        session['user_name'] = user.full_name
-        flash(f"Welcome to NestKerala, {user.full_name}! Your account is active.", "success")
-
-        if user.is_owner_or_agent():
-            return redirect(url_for('owner_dashboard'))
+        session['user_name'] = user.name
+        flash(f"Welcome to Nest Kerala, {user.name}! Your account has been created successfully.", "success")
         return redirect(url_for('index'))
 
     return render_template('auth/register.html')
@@ -764,17 +678,16 @@ def login():
 
         user = User.query.filter_by(email=email).first()
         if user and user.check_password(password):
-            session['user_id'] = user.id
+            session['user_id'] = user.user_id
             session['user_role'] = user.role
-            session['user_name'] = user.full_name
-            flash(f"Welcome back, {user.full_name}!", "success")
+            session['user_name'] = user.name
+            flash(f"Welcome back, {user.name}!", "success")
 
             if next_url:
                 return redirect(next_url)
             if user.is_admin():
+                session['admin_id'] = 1
                 return redirect(url_for('admin_dashboard'))
-            if user.is_owner_or_agent():
-                return redirect(url_for('owner_dashboard'))
             return redirect(url_for('index'))
 
         flash("Invalid email or password. Please try again.", "danger")
@@ -791,326 +704,544 @@ def logout():
     return redirect(url_for('index'))
 
 
-@app.route('/profile', methods=['GET', 'POST'])
-@login_required
-def profile():
-    user = get_current_user()
-    if request.method == 'POST':
-        user.full_name = request.form.get('full_name', user.full_name).strip()
-        user.phone = request.form.get('phone', user.phone).strip()
-        if user.role == 'agent':
-            user.agency_name = request.form.get('agency_name', user.agency_name).strip()
+# -------------------------------------------------------------
+# Admin Authentication & Dashboard (Section 4 & 15)
+# -------------------------------------------------------------
 
-        new_password = request.form.get('new_password', '')
-        if new_password:
-            user.set_password(new_password)
-            flash("Password updated successfully.", "success")
+@app.route('/admin/login', methods=['GET', 'POST'])
+def admin_login():
+    if 'admin_id' in session:
+        return redirect(url_for('admin_dashboard'))
+
+    if request.method == 'POST':
+        email = request.form.get('email', '').strip().lower()
+        password = request.form.get('password', '')
+        next_url = request.args.get('next')
+
+        # Check ADMINS table
+        admin = Admin.query.filter_by(email=email).first()
+        if admin and admin.check_password(password):
+            session['admin_id'] = admin.admin_id
+            session['admin_email'] = admin.email
+            session['admin_name'] = admin.name
+            flash(f"Welcome to Nest Kerala Control Center, {admin.name}!", "success")
+            return redirect(next_url or url_for('admin_dashboard'))
+
+        # Fallback to User with admin role
+        admin_user = User.query.filter_by(email=email, role='admin').first()
+        if admin_user and admin_user.check_password(password):
+            session['admin_id'] = admin_user.user_id
+            session['user_id'] = admin_user.user_id
+            session['user_name'] = admin_user.name
+            session['user_role'] = 'admin'
+            flash(f"Welcome Administrator, {admin_user.name}!", "success")
+            return redirect(next_url or url_for('admin_dashboard'))
+
+        flash("Invalid administrator credentials. Access denied.", "danger")
+
+    return render_template('admin/login.html')
+
+
+@app.route('/admin/logout')
+def admin_logout():
+    session.pop('admin_id', None)
+    session.pop('admin_email', None)
+    session.pop('admin_name', None)
+    flash("Administrator signed out successfully.", "info")
+    return redirect(url_for('admin_login'))
+
+
+@app.route('/admin')
+@admin_required
+def admin_dashboard():
+    # Overview statistics calculated directly from SQLite records
+    total_users = User.query.count()
+    total_properties = Property.query.count()
+    available_properties = Property.query.filter_by(availability='Available').count()
+    unavailable_properties = Property.query.filter(Property.availability != 'Available').count()
+    total_districts = District.query.count()
+    total_reviews = Review.query.count()
+
+    # Search & District Filtering for listings management table
+    district_filter = request.args.get('district_filter', '').strip()
+    query_q = request.args.get('q', '').strip()
+
+    prop_query = Property.query
+    if district_filter:
+        dist_obj = District.query.filter_by(district_name=district_filter).first()
+        if dist_obj:
+            prop_query = prop_query.filter(Property.district_id == dist_obj.district_id)
+
+    if query_q:
+        q_term = f"%{query_q}%"
+        prop_query = prop_query.filter(
+            db.or_(
+                Property.title.ilike(q_term),
+                Property.town.ilike(q_term),
+                Property.property_code.ilike(q_term)
+            )
+        )
+
+    all_properties = prop_query.order_by(Property.property_id.desc()).all()
+
+    return render_template(
+        'admin/dashboard.html',
+        total_users=total_users,
+        total_properties=total_properties,
+        available_properties=available_properties,
+        unavailable_properties=unavailable_properties,
+        total_districts=total_districts,
+        total_reviews=total_reviews,
+        properties=all_properties,
+        selected_district=district_filter,
+        query_q=query_q
+    )
+
+
+# Admin Feature A: Add New Rental House
+@app.route('/admin/property/add', methods=['GET', 'POST'])
+@admin_required
+def admin_add_property():
+    districts = District.query.order_by(District.district_name.asc()).all()
+
+    if request.method == 'POST':
+        title = request.form.get('title', '').strip()
+        description = request.form.get('description', '').strip()
+        district_id = request.form.get('district_id', type=int)
+        town = request.form.get('town', '').strip()
+        address = request.form.get('address', '').strip()
+        pincode = request.form.get('pincode', '').strip()
+        rent = request.form.get('rent', type=int)
+        deposit = request.form.get('deposit', type=int)
+        bhk = request.form.get('bhk', type=int)
+        bathrooms = request.form.get('bathrooms', default=2, type=int)
+        area = request.form.get('area', type=int)
+        furnishing = request.form.get('furnishing', 'Semi-Furnished').strip()
+        property_type = request.form.get('property_type', 'Independent Villa').strip()
+        parking = request.form.get('parking', 'Covered Car Parking').strip()
+        water_supply = request.form.get('water_supply', 'KWA + Open Well').strip()
+        facilities = request.form.get('facilities', '').strip()
+        availability = request.form.get('availability', 'Available').strip()
+        
+        owner_name = request.form.get('owner_name', '').strip()
+        owner_phone = request.form.get('owner_phone', '').strip()
+        owner_email = request.form.get('owner_email', '').strip()
+        
+        latitude = request.form.get('latitude', type=float)
+        longitude = request.form.get('longitude', type=float)
+        landmarks = request.form.get('landmarks', '').strip()
+
+        # Validation
+        if not title or not district_id or not rent or not deposit or not bhk or not area or not owner_name or not owner_phone:
+            flash("Please fill in all required property, pricing, and owner details.", "danger")
+            return render_template('admin/property_form.html', is_edit=False, districts=districts)
+
+        # Find or create Owner
+        owner = Owner.query.filter_by(phone=owner_phone).first()
+        if not owner:
+            owner = Owner(
+                name=owner_name,
+                phone=owner_phone,
+                email=owner_email if owner_email else None,
+                contact_type="Individual Owner"
+            )
+            db.session.add(owner)
+            db.session.flush()
+
+        # Generate property code
+        dist_obj = db.session.get(District, district_id)
+        dist_code = dist_obj.district_name[:3].upper() if dist_obj else "KRL"
+        now_ts = int(datetime.now().timestamp()) % 10000
+        prop_code = f"NK-{dist_code}-{now_ts}"
+
+        slug = f"{title.lower().replace(' ', '-')[:50]}"
+
+        new_prop = Property(
+            title=title,
+            description=description,
+            rent=rent,
+            deposit=deposit,
+            bhk=bhk,
+            bathrooms=bathrooms,
+            area=area,
+            town=town,
+            address=address,
+            pincode=pincode,
+            furnishing=furnishing,
+            property_type=property_type,
+            parking=parking,
+            water_supply=water_supply,
+            facilities=facilities,
+            availability=availability,
+            latitude=latitude,
+            longitude=longitude,
+            landmarks=landmarks,
+            district_id=district_id,
+            owner_id=owner.owner_id,
+            property_code=prop_code,
+            slug=slug,
+            is_verified=True,
+            is_sample_demo=False
+        )
+        db.session.add(new_prop)
+        db.session.flush()
+
+        # Save uploaded photographs
+        uploaded_files = request.files.getlist('property_photos')
+        saved_photos = 0
+        for idx, file in enumerate(uploaded_files):
+            file_url = save_uploaded_file(file, app.config['UPLOAD_FOLDER'])
+            if file_url:
+                caption = "Exterior View" if idx == 0 else f"Interior View {idx}"
+                photo = PropertyPhoto(
+                    property_id=new_prop.property_id,
+                    photo_path=file_url,
+                    photo_type=caption,
+                    is_primary=(idx == 0)
+                )
+                db.session.add(photo)
+                saved_photos += 1
+
+        # Fallback photo if none uploaded
+        if saved_photos == 0:
+            fallback = PropertyPhoto(
+                property_id=new_prop.property_id,
+                photo_path="/static/images/hero-kerala.jpg",
+                photo_type="Exterior View",
+                is_primary=True
+            )
+            db.session.add(fallback)
 
         db.session.commit()
-        session['user_name'] = user.full_name
-        flash("Your profile details have been updated.", "success")
+        flash(f"New rental property '{title}' created successfully in {dist_obj.district_name if dist_obj else ''}!", "success")
+        return redirect(url_for('admin_dashboard'))
 
-    # Inquiries sent by this user
-    sent_enquiries = Enquiry.query.filter_by(user_id=user.id).order_by(Enquiry.id.desc()).all()
-    # Visit requests sent by this user
-    sent_visits = VisitRequest.query.filter_by(user_id=user.id).order_by(VisitRequest.id.desc()).all()
-
-    return render_template(
-        'auth/profile.html',
-        user=user,
-        sent_enquiries=sent_enquiries,
-        sent_visits=sent_visits
-    )
+    return render_template('admin/property_form.html', is_edit=False, districts=districts)
 
 
-# -------------------------------------------------------------
-# Owner & Agent Management Dashboard
-# -------------------------------------------------------------
-
-@app.route('/dashboard/owner')
-@login_required
-@role_required('owner', 'agent', 'admin')
-def owner_dashboard():
-    user = get_current_user()
-
-    # Admin can see all, owners see their own properties
-    if user.is_admin():
-        properties = Property.query.order_by(Property.id.desc()).all()
-    else:
-        properties = Property.query.filter_by(owner_id=user.id).order_by(Property.id.desc()).all()
-
-    prop_ids = [p.id for p in properties]
-
-    # Incoming enquiries for owner's properties
-    enquiries = Enquiry.query.filter(Enquiry.property_id.in_(prop_ids)).order_by(Enquiry.id.desc()).all() if prop_ids else []
-    # Incoming visit requests for owner's properties
-    visit_requests = VisitRequest.query.filter(VisitRequest.property_id.in_(prop_ids)).order_by(VisitRequest.id.desc()).all() if prop_ids else []
-
-    total_properties = len(properties)
-    available_count = sum(1 for p in properties if p.status == 'Available')
-    rented_count = sum(1 for p in properties if p.status == 'Rented')
-    pending_visits = sum(1 for v in visit_requests if v.status == 'pending')
-
-    return render_template(
-        'dashboard/owner.html',
-        user=user,
-        properties=properties,
-        enquiries=enquiries,
-        visit_requests=visit_requests,
-        total_properties=total_properties,
-        available_count=available_count,
-        rented_count=rented_count,
-        pending_visits=pending_visits
-    )
-
-
-@app.route('/property/<int:property_id>/edit', methods=['GET', 'POST'])
-@login_required
-def edit_property(property_id):
-    user = get_current_user()
+# Admin Feature B: Edit Property Details
+@app.route('/admin/property/<int:property_id>/edit', methods=['GET', 'POST'])
+@admin_required
+def admin_edit_property(property_id):
     prop = Property.query.get_or_404(property_id)
-
-    # Check authorization
-    if not user.is_admin() and prop.owner_id != user.id:
-        flash("You do not have permission to edit this listing.", "danger")
-        return redirect(url_for('owner_dashboard'))
+    districts = District.query.order_by(District.district_name.asc()).all()
 
     if request.method == 'POST':
         prop.title = request.form.get('title', prop.title).strip()
-        prop.district = request.form.get('district', prop.district).strip()
-        prop.city_town = request.form.get('city_town', prop.city_town).strip()
-        prop.locality = request.form.get('locality', prop.locality).strip()
-        prop.full_address = request.form.get('full_address', prop.full_address).strip()
-        prop.monthly_rent = request.form.get('monthly_rent', prop.monthly_rent, type=int)
-        prop.security_deposit = request.form.get('security_deposit', prop.security_deposit, type=int)
-        prop.maintenance_charges = request.form.get('maintenance_charges', prop.maintenance_charges, type=int)
+        prop.description = request.form.get('description', prop.description).strip()
+        prop.district_id = request.form.get('district_id', prop.district_id, type=int)
+        prop.town = request.form.get('town', prop.town).strip()
+        prop.address = request.form.get('address', prop.address).strip()
+        prop.pincode = request.form.get('pincode', prop.pincode).strip()
+        prop.rent = request.form.get('rent', prop.rent, type=int)
+        prop.deposit = request.form.get('deposit', prop.deposit, type=int)
         prop.bhk = request.form.get('bhk', prop.bhk, type=int)
         prop.bathrooms = request.form.get('bathrooms', prop.bathrooms, type=int)
-        prop.sqft_area = request.form.get('sqft_area', prop.sqft_area, type=int)
+        prop.area = request.form.get('area', prop.area, type=int)
         prop.furnishing = request.form.get('furnishing', prop.furnishing).strip()
+        prop.property_type = request.form.get('property_type', prop.property_type).strip()
         prop.parking = request.form.get('parking', prop.parking).strip()
         prop.water_supply = request.form.get('water_supply', prop.water_supply).strip()
-        prop.electricity = request.form.get('electricity', prop.electricity).strip()
-        prop.kitchen_type = request.form.get('kitchen_type', prop.kitchen_type).strip()
-        prop.pet_policy = request.form.get('pet_policy', prop.pet_policy).strip()
-        prop.tenant_preference = request.form.get('tenant_preference', prop.tenant_preference).strip()
-        prop.status = request.form.get('status', prop.status).strip()
-        prop.description = request.form.get('description', prop.description).strip()
-        prop.contact_phone = request.form.get('contact_phone', prop.contact_phone).strip()
-        prop.whatsapp_number = request.form.get('whatsapp_number', prop.whatsapp_number).strip()
+        prop.facilities = request.form.get('facilities', prop.facilities).strip()
+        prop.availability = request.form.get('availability', prop.availability).strip()
+        prop.landmarks = request.form.get('landmarks', prop.landmarks).strip()
 
-        # Handle any new photo uploads
-        new_photos = request.files.getlist('new_photos')
-        for file in new_photos:
+        lat = request.form.get('latitude', type=float)
+        lng = request.form.get('longitude', type=float)
+        if lat is not None:
+            prop.latitude = lat
+        if lng is not None:
+            prop.longitude = lng
+
+        # Update Owner details
+        if prop.owner_rel:
+            prop.owner_rel.name = request.form.get('owner_name', prop.owner_rel.name).strip()
+            prop.owner_rel.phone = request.form.get('owner_phone', prop.owner_rel.phone).strip()
+            prop.owner_rel.email = request.form.get('owner_email', prop.owner_rel.email).strip()
+
+        # Handle any new photos uploaded in edit form
+        uploaded_files = request.files.getlist('property_photos')
+        for file in uploaded_files:
             file_url = save_uploaded_file(file, app.config['UPLOAD_FOLDER'])
             if file_url:
-                img = PropertyImage(
-                    property_id=prop.id,
-                    image_url=file_url,
-                    caption="Additional View",
-                    image_order=prop.images.count() + 1,
+                photo = PropertyPhoto(
+                    property_id=prop.property_id,
+                    photo_path=file_url,
+                    photo_type="Additional View",
                     is_primary=False
                 )
-                db.session.add(img)
+                db.session.add(photo)
 
         db.session.commit()
-        flash(f"Listing '{prop.title}' has been successfully updated.", "success")
-        return redirect(url_for('owner_dashboard'))
+        flash(f"Property '{prop.title}' details updated successfully.", "success")
+        return redirect(url_for('admin_dashboard'))
 
-    return render_template('dashboard/edit_property.html', property=prop)
+    return render_template('admin/property_form.html', is_edit=True, property=prop, districts=districts)
 
 
+# Admin Feature C: Manage Property Photos
+@app.route('/admin/property/<int:property_id>/photos')
+@admin_required
+def admin_manage_photos(property_id):
+    prop = Property.query.get_or_404(property_id)
+    photos = prop.photos.order_by(PropertyPhoto.is_primary.desc(), PropertyPhoto.photo_id.asc()).all()
+    return render_template('admin/manage_photos.html', property=prop, photos=photos)
+
+
+@app.route('/admin/property/<int:property_id>/photos/upload', methods=['POST'])
+@admin_required
+def admin_upload_photo(property_id):
+    prop = Property.query.get_or_404(property_id)
+    file = request.files.get('photo_file')
+    photo_type = request.form.get('photo_type', 'Exterior').strip()
+
+    if file:
+        file_url = save_uploaded_file(file, app.config['UPLOAD_FOLDER'])
+        if file_url:
+            # If no photos exist, make this primary
+            is_prim = (prop.photos.count() == 0)
+            photo = PropertyPhoto(
+                property_id=prop.property_id,
+                photo_path=file_url,
+                photo_type=photo_type,
+                is_primary=is_prim
+            )
+            db.session.add(photo)
+            db.session.commit()
+            flash("New photograph uploaded successfully.", "success")
+        else:
+            flash("Invalid image file format.", "danger")
+    else:
+        flash("Please select an image file to upload.", "warning")
+
+    return redirect(url_for('admin_manage_photos', property_id=prop.property_id))
+
+
+@app.route('/admin/photos/<int:photo_id>/set-primary', methods=['POST'])
+@admin_required
+def admin_set_primary_photo(photo_id):
+    photo = PropertyPhoto.query.get_or_404(photo_id)
+    # Remove primary flag from other photos of this property
+    PropertyPhoto.query.filter_by(property_id=photo.property_id).update({'is_primary': False})
+    photo.is_primary = True
+    db.session.commit()
+    flash("Primary cover photo updated successfully.", "success")
+    return redirect(url_for('admin_manage_photos', property_id=photo.property_id))
+
+
+@app.route('/admin/photos/<int:photo_id>/delete', methods=['POST'])
+@admin_required
+def admin_delete_photo(photo_id):
+    photo = PropertyPhoto.query.get_or_404(photo_id)
+    prop_id = photo.property_id
+    db.session.delete(photo)
+    db.session.commit()
+    flash("Photograph removed successfully.", "info")
+    return redirect(url_for('admin_manage_photos', property_id=prop_id))
+
+
+# Admin Feature E: Manage Feedback
+@app.route('/admin/reviews')
+@admin_required
+def admin_manage_reviews():
+    reviews = Review.query.order_by(Review.review_date.desc()).all()
+    return render_template('admin/reviews.html', reviews=reviews)
+
+
+@app.route('/admin/reviews/<int:review_id>/delete', methods=['POST'])
+@admin_required
+def admin_delete_review(review_id):
+    review = Review.query.get_or_404(review_id)
+    db.session.delete(review)
+    db.session.commit()
+    flash("Review has been permanently removed.", "info")
+    return redirect(url_for('admin_manage_reviews'))
+
+
+# Admin Feature F: Delete Property
+@app.route('/admin/property/<int:property_id>/delete', methods=['POST'])
+@admin_required
+def admin_delete_property(property_id):
+    prop = Property.query.get_or_404(property_id)
+    title = prop.title
+    db.session.delete(prop)
+    db.session.commit()
+    flash(f"Property '{title}' and its associated photographs and reviews have been permanently deleted.", "info")
+    return redirect(url_for('admin_dashboard'))
+
+
+# Backward compatibility route for standard delete
 @app.route('/property/<int:property_id>/delete', methods=['POST'])
 @login_required
 def delete_property(property_id):
-    user = get_current_user()
+    curr_user = get_current_user()
+    curr_admin = get_current_admin()
     prop = Property.query.get_or_404(property_id)
 
-    if not user.is_admin() and prop.owner_id != user.id:
+    if not curr_admin and (not curr_user or prop.owner_rel.phone != curr_user.phone):
         flash("You are not authorized to delete this property.", "danger")
-        return redirect(url_for('owner_dashboard'))
+        return redirect(url_for('index'))
 
     title = prop.title
     db.session.delete(prop)
     db.session.commit()
-    flash(f"Property '{title}' has been permanently deleted.", "info")
-    return redirect(url_for('owner_dashboard'))
+    flash(f"Property '{title}' deleted.", "info")
+    return redirect(request.referrer or url_for('admin_dashboard'))
 
 
-@app.route('/property/<int:property_id>/toggle-status', methods=['POST'])
-@login_required
-def toggle_property_status(property_id):
-    user = get_current_user()
-    prop = Property.query.get_or_404(property_id)
+# -------------------------------------------------------------
+# Additional Routes: List Property, Owner Dashboard, Profile
+# -------------------------------------------------------------
 
-    if not user.is_admin() and prop.owner_id != user.id:
-        flash("Unauthorized action.", "danger")
-        return redirect(url_for('owner_dashboard'))
+@app.route('/list-property', methods=['GET', 'POST'])
+def list_property():
+    districts = District.query.order_by(District.district_name.asc()).all()
 
-    prop.status = 'Rented' if prop.status == 'Available' else 'Available'
-    db.session.commit()
-    flash(f"Status for '{prop.title}' changed to {prop.status}.", "success")
-    return redirect(request.referrer or url_for('owner_dashboard'))
+    if request.method == 'POST':
+        title = request.form.get('title', '').strip()
+        district_name = request.form.get('district', '').strip()
+        town = request.form.get('city_town', '').strip()
+        address = request.form.get('full_address', '').strip()
+        pincode = request.form.get('pin_code', '').strip()
+        rent = request.form.get('monthly_rent', type=int)
+        deposit = request.form.get('security_deposit', type=int)
+        bhk = request.form.get('bhk', type=int)
+        bathrooms = request.form.get('bathrooms', default=2, type=int)
+        area = request.form.get('sqft_area', type=int)
+        property_type = request.form.get('property_type', 'Independent Villa').strip()
+        furnishing = request.form.get('furnishing', 'Semi-Furnished').strip()
+        parking = request.form.get('parking', 'Covered Car Parking').strip()
+        water_supply = request.form.get('water_supply', 'KWA + Open Well').strip()
+        facilities = request.form.get('facilities', 'Covered Parking, 24x7 Water, Balcony').strip()
+        description = request.form.get('description', '').strip()
+        landmarks = request.form.get('nearby_landmarks', '').strip()
+        owner_name = request.form.get('owner_name', '').strip()
+        owner_phone = request.form.get('contact_phone', '').strip()
+        owner_email = request.form.get('contact_email', '').strip()
 
+        if not title or not district_name or not rent or not deposit or not bhk or not area or not owner_name or not owner_phone:
+            flash("Please fill in all mandatory fields.", "danger")
+            return render_template('list_property.html')
 
-@app.route('/property/<int:property_id>/update-rent', methods=['POST'])
-@login_required
-def update_property_rent(property_id):
-    user = get_current_user()
-    prop = Property.query.get_or_404(property_id)
+        dist_obj = District.query.filter_by(district_name=district_name).first()
+        if not dist_obj:
+            dist_obj = District.query.first()
 
-    if not user.is_admin() and prop.owner_id != user.id:
-        flash("Unauthorized action.", "danger")
-        return redirect(url_for('owner_dashboard'))
+        owner = Owner.query.filter_by(phone=owner_phone).first()
+        if not owner:
+            owner = Owner(name=owner_name, phone=owner_phone, email=owner_email if owner_email else None)
+            db.session.add(owner)
+            db.session.flush()
 
-    new_rent = request.form.get('monthly_rent', type=int)
-    new_deposit = request.form.get('security_deposit', type=int)
-    if new_rent:
-        prop.monthly_rent = new_rent
-    if new_deposit:
-        prop.security_deposit = new_deposit
+        dist_code = dist_obj.district_name[:3].upper()
+        now_ts = int(datetime.now().timestamp()) % 10000
+        prop_code = f"NK-{dist_code}-{now_ts}"
 
-    db.session.commit()
-    flash(f"Pricing updated for '{prop.title}'.", "success")
-    return redirect(request.referrer or url_for('owner_dashboard'))
+        new_prop = Property(
+            title=title,
+            description=description,
+            rent=rent,
+            deposit=deposit,
+            bhk=bhk,
+            bathrooms=bathrooms,
+            area=area,
+            town=town or dist_obj.district_name,
+            address=address,
+            pincode=pincode or "682001",
+            furnishing=furnishing,
+            property_type=property_type,
+            parking=parking,
+            water_supply=water_supply,
+            facilities=facilities,
+            landmarks=landmarks,
+            district_id=dist_obj.district_id,
+            owner_id=owner.owner_id,
+            property_code=prop_code,
+            slug=title.lower().replace(' ', '-')[:50],
+            availability='Available'
+        )
+        db.session.add(new_prop)
+        db.session.flush()
 
+        uploaded_files = request.files.getlist('property_photos')
+        saved_photos = 0
+        for idx, file in enumerate(uploaded_files):
+            file_url = save_uploaded_file(file, app.config['UPLOAD_FOLDER'])
+            if file_url:
+                photo = PropertyPhoto(
+                    property_id=new_prop.property_id,
+                    photo_path=file_url,
+                    photo_type="Exterior View" if idx == 0 else f"Interior View {idx}",
+                    is_primary=(idx == 0)
+                )
+                db.session.add(photo)
+                saved_photos += 1
 
-@app.route('/dashboard/visit/<int:visit_id>/status', methods=['POST'])
-@login_required
-def update_visit_status(visit_id):
-    visit = VisitRequest.query.get_or_404(visit_id)
-    prop = db.session.get(Property, visit.property_id)
-    user = get_current_user()
+        if saved_photos == 0:
+            fallback = PropertyPhoto(
+                property_id=new_prop.property_id,
+                photo_path="/static/images/hero-kerala.jpg",
+                photo_type="Exterior View",
+                is_primary=True
+            )
+            db.session.add(fallback)
 
-    if not user.is_admin() and prop.owner_id != user.id:
-        flash("Unauthorized.", "danger")
-        return redirect(url_for('owner_dashboard'))
-
-    new_status = request.form.get('status', 'confirmed')
-    reply_msg = request.form.get('owner_reply', '')
-    if new_status in ['confirmed', 'declined', 'completed']:
-        visit.status = new_status
-        if reply_msg:
-            visit.owner_reply = reply_msg
         db.session.commit()
-        flash(f"Visit request marked as {new_status.capitalize()}.", "success")
+        flash(f"Property '{title}' has been successfully listed on Nest Kerala!", "success")
+        return redirect(url_for('property_detail', property_id=new_prop.property_id))
 
-    return redirect(url_for('owner_dashboard'))
+    return render_template('list_property.html')
 
 
-# -------------------------------------------------------------
-# Admin Control Panel
-# -------------------------------------------------------------
-
-@app.route('/admin')
+@app.route('/dashboard/owner')
 @login_required
-@role_required('admin')
-def admin_dashboard():
-    # Platform stats
-    total_properties = Property.query.count()
-    available_count = Property.query.filter_by(status='Available', approval_status='approved').count()
-    rented_count = Property.query.filter_by(status='Rented').count()
-    pending_approvals = Property.query.filter_by(approval_status='pending').all()
-    pending_count = len(pending_approvals)
-    
-    total_users = User.query.count()
-    owners_count = User.query.filter_by(role='owner').count()
-    agents_count = User.query.filter_by(role='agent').count()
-    tenants_count = User.query.filter_by(role='tenant').count()
+def owner_dashboard():
+    curr_user = get_current_user()
+    curr_admin = get_current_admin()
 
-    total_enquiries = Enquiry.query.count()
-    reports = PropertyReport.query.order_by(PropertyReport.id.desc()).all()
-    all_properties = Property.query.order_by(Property.id.desc()).all()
-    all_users = User.query.order_by(User.id.desc()).all()
+    if curr_admin or (curr_user and curr_user.is_admin()):
+        properties = Property.query.order_by(Property.property_id.desc()).all()
+    else:
+        owner = Owner.query.filter_by(phone=curr_user.phone).first() if curr_user else None
+        if owner:
+            properties = Property.query.filter_by(owner_id=owner.owner_id).all()
+        else:
+            properties = []
+
+    prop_ids = [p.property_id for p in properties]
+    enquiries = Enquiry.query.filter(Enquiry.property_id.in_(prop_ids)).order_by(Enquiry.id.desc()).all() if prop_ids else []
+    visit_requests = VisitRequest.query.filter(VisitRequest.property_id.in_(prop_ids)).order_by(VisitRequest.id.desc()).all() if prop_ids else []
 
     return render_template(
-        'dashboard/admin.html',
-        total_properties=total_properties,
-        available_count=available_count,
-        rented_count=rented_count,
-        pending_count=pending_count,
-        pending_approvals=pending_approvals,
-        total_users=total_users,
-        owners_count=owners_count,
-        agents_count=agents_count,
-        tenants_count=tenants_count,
-        total_enquiries=total_enquiries,
-        reports=reports,
-        properties=all_properties,
-        users=all_users
+        'dashboard/owner.html',
+        user=curr_user or curr_admin,
+        properties=properties,
+        enquiries=enquiries,
+        visit_requests=visit_requests,
+        total_properties=len(properties),
+        available_count=sum(1 for p in properties if p.availability == 'Available'),
+        rented_count=sum(1 for p in properties if p.availability != 'Available'),
+        pending_visits=sum(1 for v in visit_requests if v.status == 'pending')
     )
 
 
-@app.route('/admin/property/<int:property_id>/approve', methods=['POST'])
+@app.route('/profile')
 @login_required
-@role_required('admin')
-def admin_approve_property(property_id):
-    prop = Property.query.get_or_404(property_id)
-    prop.approval_status = 'approved'
-    db.session.commit()
-    flash(f"Listing '{prop.title}' has been approved and published live.", "success")
-    return redirect(url_for('admin_dashboard'))
+def profile():
+    curr_user = get_current_user()
+    if not curr_user:
+        return redirect(url_for('login'))
 
+    sent_enquiries = Enquiry.query.filter_by(user_id=curr_user.user_id).order_by(Enquiry.id.desc()).all()
+    sent_visits = VisitRequest.query.filter_by(user_id=curr_user.user_id).order_by(VisitRequest.id.desc()).all()
 
-@app.route('/admin/property/<int:property_id>/reject', methods=['POST'])
-@login_required
-@role_required('admin')
-def admin_reject_property(property_id):
-    prop = Property.query.get_or_404(property_id)
-    prop.approval_status = 'rejected'
-    db.session.commit()
-    flash(f"Listing '{prop.title}' has been rejected.", "warning")
-    return redirect(url_for('admin_dashboard'))
+    return render_template(
+        'auth/profile.html',
+        user=curr_user,
+        sent_enquiries=sent_enquiries,
+        sent_visits=sent_visits
+    )
 
-
-@app.route('/admin/property/<int:property_id>/toggle-verify', methods=['POST'])
-@login_required
-@role_required('admin')
-def admin_toggle_verify(property_id):
-    prop = Property.query.get_or_404(property_id)
-    prop.is_verified = not prop.is_verified
-    db.session.commit()
-    status_str = "Verified by NestKerala badge added" if prop.is_verified else "Verification badge removed"
-    flash(f"{status_str} for '{prop.title}'.", "success")
-    return redirect(request.referrer or url_for('admin_dashboard'))
-
-
-@app.route('/admin/property/<int:property_id>/toggle-featured', methods=['POST'])
-@login_required
-@role_required('admin')
-def admin_toggle_featured(property_id):
-    prop = Property.query.get_or_404(property_id)
-    prop.is_featured = not prop.is_featured
-    db.session.commit()
-    status_str = "marked as Featured" if prop.is_featured else "removed from Featured"
-    flash(f"Listing '{prop.title}' {status_str}.", "success")
-    return redirect(request.referrer or url_for('admin_dashboard'))
-
-
-@app.route('/admin/report/<int:report_id>/resolve', methods=['POST'])
-@login_required
-@role_required('admin')
-def admin_resolve_report(report_id):
-    rep = PropertyReport.query.get_or_404(report_id)
-    action = request.form.get('action', 'resolved')
-    if action == 'remove_listing':
-        prop = db.session.get(Property, rep.property_id)
-        if prop:
-            prop.approval_status = 'rejected'
-            rep.status = 'resolved'
-            db.session.commit()
-            flash(f"Report resolved: Listing '{prop.title}' removed from active view.", "warning")
-            return redirect(url_for('admin_dashboard'))
-    
-    rep.status = 'resolved'
-    db.session.commit()
-    flash("Report marked as resolved.", "info")
-    return redirect(url_for('admin_dashboard'))
-
-
-# -------------------------------------------------------------
-# Utility, Error Handlers & Bilingual Switcher
-# -------------------------------------------------------------
 
 @app.route('/set-language/<lang>')
 def set_language(lang):
@@ -1140,7 +1271,7 @@ def server_error(e):
 
 
 # -------------------------------------------------------------
-# Application Initialization & CLI commands
+# Database Setup & Seeding on Application Startup
 # -------------------------------------------------------------
 
 with app.app_context():

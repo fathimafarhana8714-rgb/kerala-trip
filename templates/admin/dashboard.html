@@ -1,0 +1,220 @@
+{% extends 'base.html' %}
+
+{% block title %}Admin Dashboard | Nest Kerala – Rental Home Finder{% endblock %}
+
+{% block content %}
+<div class="container" style="padding: 2.5rem 1.25rem 5rem;">
+
+  <!-- Dashboard Top Bar -->
+  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 2rem;">
+    <div>
+      <span class="section-pretitle">BCA Mini Project &bull; Control Center</span>
+      <h1 class="section-title" style="margin-bottom: 0.25rem;">Nest Kerala Admin Dashboard</h1>
+      <p class="text-muted" style="margin-bottom: 0;">Comprehensive database management for Kerala rental properties, owners, photos, and reviews.</p>
+    </div>
+
+    <!-- Quick Action Buttons -->
+    <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+      <a href="{{ url_for('admin_add_property') }}" class="btn btn-primary-emerald">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+        + Add New Rental House
+      </a>
+      <a href="{{ url_for('admin_manage_reviews') }}" class="btn btn-secondary-emerald">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
+        Manage Feedback ({{ total_reviews }})
+      </a>
+      <a href="{{ url_for('admin_logout') }}" class="btn btn-danger-soft">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+        Admin Logout
+      </a>
+    </div>
+  </div>
+
+  <!-- ==============================================================
+       Admin Dashboard Overview - 6 Required Database Statistics
+       ============================================================== -->
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 2.5rem;">
+    <!-- 1. Total Registered Users -->
+    <div style="background: white; border: 1px solid var(--border-light); border-radius: var(--radius-md); padding: 1.25rem; box-shadow: var(--shadow-sm); border-left: 4px solid #2563EB;">
+      <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Total Registered Users</div>
+      <div style="font-size: 1.85rem; font-weight: 800; color: var(--primary-900); margin: 0.25rem 0;">{{ total_users }}</div>
+      <div style="font-size: 0.75rem; color: #2563EB;">From USERS SQLite table</div>
+    </div>
+
+    <!-- 2. Total Rental Properties -->
+    <div style="background: white; border: 1px solid var(--border-light); border-radius: var(--radius-md); padding: 1.25rem; box-shadow: var(--shadow-sm); border-left: 4px solid var(--emerald-600);">
+      <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Total Rental Properties</div>
+      <div style="font-size: 1.85rem; font-weight: 800; color: var(--emerald-700); margin: 0.25rem 0;">{{ total_properties }}</div>
+      <div style="font-size: 0.75rem; color: var(--emerald-600);">Min 4 per district demo</div>
+    </div>
+
+    <!-- 3. Available Properties -->
+    <div style="background: white; border: 1px solid var(--border-light); border-radius: var(--radius-md); padding: 1.25rem; box-shadow: var(--shadow-sm); border-left: 4px solid #059669;">
+      <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Available Properties</div>
+      <div style="font-size: 1.85rem; font-weight: 800; color: #059669; margin: 0.25rem 0;">{{ available_properties }}</div>
+      <div style="font-size: 0.75rem; color: #059669;">Ready for immediate move-in</div>
+    </div>
+
+    <!-- 4. Unavailable Properties -->
+    <div style="background: white; border: 1px solid var(--border-light); border-radius: var(--radius-md); padding: 1.25rem; box-shadow: var(--shadow-sm); border-left: 4px solid #DC2626;">
+      <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Unavailable / Rented</div>
+      <div style="font-size: 1.85rem; font-weight: 800; color: #DC2626; margin: 0.25rem 0;">{{ unavailable_properties }}</div>
+      <div style="font-size: 0.75rem; color: #DC2626;">Rented or under negotiation</div>
+    </div>
+
+    <!-- 5. Total Districts -->
+    <div style="background: white; border: 1px solid var(--border-light); border-radius: var(--radius-md); padding: 1.25rem; box-shadow: var(--shadow-sm); border-left: 4px solid var(--gold-500);">
+      <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Total Districts</div>
+      <div style="font-size: 1.85rem; font-weight: 800; color: var(--gold-600); margin: 0.25rem 0;">{{ total_districts }}</div>
+      <div style="font-size: 0.75rem; color: var(--gold-600);">All 14 Kerala Districts active</div>
+    </div>
+
+    <!-- 6. Total Feedback Reviews -->
+    <div style="background: white; border: 1px solid var(--border-light); border-radius: var(--radius-md); padding: 1.25rem; box-shadow: var(--shadow-sm); border-left: 4px solid #7C3AED;">
+      <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Total Feedback Reviews</div>
+      <div style="font-size: 1.85rem; font-weight: 800; color: #7C3AED; margin: 0.25rem 0;">{{ total_reviews }}</div>
+      <div style="font-size: 0.75rem; color: #7C3AED;">Visitor & tenant feedback</div>
+    </div>
+  </div>
+
+  <!-- ==============================================================
+       Admin Feature D – Manage Listings Table with Search & Filter
+       ============================================================== -->
+  <div style="background: white; border: 1px solid var(--border-light); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); overflow: hidden; margin-bottom: 3rem;">
+    
+    <!-- Table Header & Filter Bar -->
+    <div style="padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border-light); background: #FAFBF9; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+      <div>
+        <h2 style="font-size: 1.25rem; font-weight: 800; color: var(--primary-900); margin-bottom: 0.2rem;">
+          Manage Rental Properties ({{ properties|length }})
+        </h2>
+        <span style="font-size: 0.85rem; color: var(--text-muted);">Manage real estate inventory, photos, pricing, availability, and deletions.</span>
+      </div>
+
+      <!-- Quick Search & District Filter -->
+      <form action="{{ url_for('admin_dashboard') }}" method="GET" style="display: flex; gap: 0.5rem; align-items: center;">
+        <select name="district_filter" class="form-control form-control-sm" style="width: 170px;" onchange="this.form.submit()">
+          <option value="">All 14 Districts</option>
+          {% for dist in kerala_districts %}
+          <option value="{{ dist }}" {% if selected_district == dist %}selected{% endif %}>{{ dist }}</option>
+          {% endfor %}
+        </select>
+        <input type="text" name="q" value="{{ query_q or '' }}" placeholder="Search ID, title, town..." class="form-control form-control-sm" style="width: 180px;">
+        <button type="submit" class="btn btn-secondary-emerald btn-sm">Filter</button>
+        {% if selected_district or query_q %}
+        <a href="{{ url_for('admin_dashboard') }}" class="btn btn-ghost btn-sm text-muted">Clear</a>
+        {% endif %}
+      </form>
+    </div>
+
+    <!-- Listings Table -->
+    <div style="overflow-x: auto;">
+      <table class="dashboard-table" style="width: 100%; border-collapse: collapse;">
+        <thead>
+          <tr style="background: var(--bg-cream); border-bottom: 2px solid var(--border-light); text-align: left; font-size: 0.82rem; text-transform: uppercase; color: var(--text-sub);">
+            <th style="padding: 0.85rem 1rem;">ID</th>
+            <th style="padding: 0.85rem 1rem;">Property Title & Photo</th>
+            <th style="padding: 0.85rem 1rem;">District & Locality</th>
+            <th style="padding: 0.85rem 1rem;">Rent / Month</th>
+            <th style="padding: 0.85rem 1rem;">BHK / Area</th>
+            <th style="padding: 0.85rem 1rem;">Availability</th>
+            <th style="padding: 0.85rem 1rem;">Owner Contact</th>
+            <th style="padding: 0.85rem 1rem; text-align: right;">Admin Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for prop in properties %}
+          <tr style="border-bottom: 1px solid var(--border-light); font-size: 0.9rem;">
+            <!-- Property ID -->
+            <td style="padding: 0.85rem 1rem; font-weight: 700; color: var(--primary-800);">
+              {{ prop.property_code or ('NK-' ~ prop.property_id) }}
+            </td>
+
+            <!-- Title & Photo Thumbnail -->
+            <td style="padding: 0.85rem 1rem;">
+              <div style="display: flex; align-items: center; gap: 0.75rem;">
+                <img src="{{ prop.primary_image_url }}" alt="" style="width: 55px; height: 42px; object-fit: cover; border-radius: 4px; border: 1px solid var(--border-light);">
+                <div>
+                  <strong><a href="{{ url_for('property_detail', property_id=prop.property_id) }}" target="_blank" style="color: var(--primary-900); text-decoration: none;">{{ prop.title }}</a></strong>
+                  <div style="font-size: 0.75rem; color: var(--text-muted);">
+                    {{ prop.property_type }} &bull; {{ prop.photos.count() }} Photos
+                  </div>
+                </div>
+              </div>
+            </td>
+
+            <!-- District & Locality -->
+            <td style="padding: 0.85rem 1rem;">
+              <strong>{{ prop.district }}</strong>
+              <div style="font-size: 0.78rem; color: var(--text-muted);">{{ prop.town }} (PIN: {{ prop.pincode }})</div>
+            </td>
+
+            <!-- Monthly Rent (Prominently Highlighted) -->
+            <td style="padding: 0.85rem 1rem;">
+              <strong style="color: var(--primary-900); font-size: 1rem;">{{ prop.formatted_rent }}</strong>
+              <div style="font-size: 0.75rem; color: var(--text-muted);">Dep: {{ prop.formatted_deposit }}</div>
+            </td>
+
+            <!-- BHK & Sq Ft -->
+            <td style="padding: 0.85rem 1rem;">
+              <div>{{ prop.bhk }} BHK</div>
+              <small class="text-muted">{{ prop.area }} sq.ft</small>
+            </td>
+
+            <!-- Availability Status Badge -->
+            <td style="padding: 0.85rem 1rem;">
+              {% if prop.availability == 'Available' %}
+              <span class="badge" style="background: #ECFDF5; color: #065F46; border: 1px solid #A7F3D0; font-weight: 700;">
+                &check; Available
+              </span>
+              {% else %}
+              <span class="badge" style="background: #FEE2E2; color: #991B1B; border: 1px solid #FECACA; font-weight: 700;">
+                {{ prop.availability }}
+              </span>
+              {% endif %}
+            </td>
+
+            <!-- Owner Contact -->
+            <td style="padding: 0.85rem 1rem;">
+              <div style="font-weight: 600; font-size: 0.85rem;">{{ prop.owner_name }}</div>
+              <div style="font-size: 0.78rem; color: var(--text-muted);">{{ prop.contact_phone }}</div>
+            </td>
+
+            <!-- Actions: View, Edit, Photos, Delete -->
+            <td style="padding: 0.85rem 1rem; text-align: right;">
+              <div style="display: flex; gap: 0.35rem; justify-content: flex-end; align-items: center;">
+                <!-- View -->
+                <a href="{{ url_for('property_detail', property_id=prop.property_id) }}" target="_blank" class="btn btn-ghost btn-sm" title="View Property Details">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                </a>
+                <!-- Edit Details (Feature B) -->
+                <a href="{{ url_for('admin_edit_property', property_id=prop.property_id) }}" class="btn btn-secondary-emerald btn-sm" title="Edit Property Details">
+                  Edit
+                </a>
+                <!-- Manage Photos (Feature C) -->
+                <a href="{{ url_for('admin_manage_photos', property_id=prop.property_id) }}" class="btn btn-outline-emerald btn-sm" title="Manage Photos">
+                  Photos ({{ prop.photos.count() }})
+                </a>
+                <!-- Delete Property (Feature F with confirmation) -->
+                <form action="{{ url_for('admin_delete_property', property_id=prop.property_id) }}" method="POST" onsubmit="return confirm('Are you sure you want to permanently delete property: {{ prop.title }}? This action removes all photos and reviews safely.');">
+                  <button type="submit" class="btn btn-danger-soft btn-sm" title="Permanently Delete Property">
+                    &times;
+                  </button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if not properties %}
+    <div style="padding: 3rem; text-align: center; color: var(--text-muted);">
+      No rental properties match the selected criteria.
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

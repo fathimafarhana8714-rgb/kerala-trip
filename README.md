@@ -1,141 +1,107 @@
-# NestKerala – Find Your Perfect Home in Kerala
+# NEST KERALA – RENTAL HOME FINDER
 
-**NestKerala** is a premium, modern, realistic, and fully functional real estate rental marketplace designed specifically for Kerala. Inspired by platforms such as Housing.com, 99acres, and Magicbricks, NestKerala brings authentic Kerala architecture, genuine property specifications, direct owner contact credentials, and verified listings across all 14 districts of Kerala.
+**BCA Third Year Mini Project**
 
----
-
-## 🌟 Key Features
-
-### 1. Premium Kerala Architectural Design & Identity
-- **Brand Palette:** Deep emerald green (`#0F4C3A`), warm temple gold (`#C89B3C`), crisp white, and cream (`#FDFBF7`).
-- **Custom NestKerala Logo:** Integrated Kerala sloping eaves (*Charupadi / Poomukham*) roof and nest motif.
-- **Bilingual Interface:** Instant language toggle between English and മലയാളം (Malayalam) across navigation and headers.
-- **Fully Responsive:** Smooth experience across mobile, tablet, and desktop screens with an interactive mobile drawer navigation.
-
-### 2. All 14 Districts of Kerala Supported
-Comprehensive coverage with realistic geographic data, local towns, PIN codes, coordinates, and landmarks for all districts:
-1. **Thiruvananthapuram** (Kowdiar, Technopark Kazhakkoottam, Pattom)
-2. **Kollam** (Asramam, Tangasseri)
-3. **Pathanamthitta** (Thiruvalla NRI Villas, Muthoor)
-4. **Alappuzha** (Mullakkal Canal-side homes, Cherthala)
-5. **Kottayam** (Kanjikuzhi, Pala)
-6. **Idukki** (Thodupuzha foothills, Munnar bypass)
-7. **Ernakulam** (Kakkanad Infopark, Marine Drive Waterfront, Panampilly Nagar)
-8. **Thrissur** (Punkunnam Heritage, Swaraj Round)
-9. **Palakkad** (Kalpathy Heritage Village, Chandranagar)
-10. **Malappuram** (Manjeri, Perinthalmanna)
-11. **Kozhikode** (Nadakkavu, Cyberpark, Calicut Beach)
-12. **Wayanad** (Kalpetta Highland Plantation Villas)
-13. **Kannur** (Payyambalam Coastal Residences)
-14. **Kasaragod** (Vidyanagar, Northern Kerala)
-
-### 3. Real Kerala Rental Property Specifications
-Every listing includes detailed housing attributes tailored to Kerala realities:
-- **Property ID:** Structured code (e.g., `NK-EKM-2024-001`)
-- **Photographs Gallery:** Multi-angle photographs (Exterior, Living Room, Master Bedroom, Secondary Bedroom, Modular Kitchen, Bathrooms, Balcony, Covered Car Porch)
-- **Monthly Rent & Security Deposit:** Transparent Kerala deposit norms
-- **Water Source:** KWA (Kerala Water Authority) connection, perennial open well sweet water, borewell, and rainwater harvesting
-- **Electricity & Power:** 3-Phase KSEB, solar hybrid rooftop power, inverter battery backup
-- **Parking Facilities:** Covered car porch (single/multiple cars + two-wheelers)
-- **Kitchen Type:** Modular kitchen with separate work area, smoke chimney, traditional hearths
-- **Pet Policy & Tenant Preferences:** Family preferred, bachelors allowed, corporate lease
-
-### 4. Direct Owner & Agent Communication (Zero Middleman)
-- **Call Owner Button:** Initiates phone calls directly to authorized numbers (`tel:+91...`).
-- **WhatsApp Owner Button:** Opens pre-filled WhatsApp chat with the property title and ID (`https://wa.me/...`).
-- **Send Direct Enquiry:** Stored in database, accessible in owner dashboard.
-- **Request Property Visit:** Prospective tenants can schedule viewing appointments (date + time slot: Morning / Afternoon / Evening).
-
-### 5. Advanced Search & Smart Recommendation Engine
-- **Search Filters:** District, City/Town, Locality keyword, BHK (1, 2, 3, 4+ BHK), Min/Max Rent, Property Type, Furnishing, Parking, Pet-friendly, Verified only.
-- **Smart Recommendations:** When exact criteria return low or zero results, the algorithm ranks and recommends alternative homes based on neighboring districts, budget proximity (±15-35%), and BHK affinity under the header *"No Exact Matches – Similar Homes You May Like"*.
-
-### 6. Side-by-Side Property Comparison
-- Select up to 3 properties from any card or details page.
-- Sticky floating compare bar at the bottom of the viewport with live counter.
-- Comprehensive matrix comparing rent, deposit, maintenance, BHK, baths, area, furnishing, parking, water, electricity, kitchen, pet policy, location, and owner contacts.
-
-### 7. Interactive Location & Google Maps
-- Integrated **Leaflet.js / OpenStreetMap** with custom emerald map pins.
-- **View on Google Maps** direct external navigation button.
-- Categorized Nearby Landmarks table with verified travel distances (Metro, IT Parks, Hospitals, Schools, Supermarkets).
-
-### 8. Role-Based Dashboards & Moderation
-- **Tenants:** Saved Homes shortlist, recently viewed listings, enquiry history, scheduled visit status.
-- **Owners & Agents:** Add properties, upload multi-angle photos, edit listings, quick rent update, toggle status (Available / Rented), manage incoming tenant inquiries, confirm or decline visit requests.
-- **Super Administrator (`/admin`):** Review pending submissions, Approve/Reject listings, assign "Verified by NestKerala" badge, feature properties, review reported listings, and monitor user accounts.
-
-### 9. Dedicated Tenant & Visitor Feedback System
-- **Per-Home Reviews:** Dedicated feedback section on every property details page with direct action link to submit authentic feedback.
-- **Kerala-Specific Ratings:**
-  - Overall Rating (1 to 5 Stars)
-  - Water Supply & Quality (KWA / Well Sweetness)
-  - Location Safety & Quietness (Access road quality, neighborhood calm)
-  - Landlord / Owner Responsiveness
-- **Visitor Context:** Feedback distinguishes between *Visited in Person*, *Previous Tenant*, *Neighborhood Resident*, and *Prospective Seeker*.
-- **Moderation Ready:** Feedbacks are stored in SQLite and linked to property listings with approval flags.
+**Nest Kerala** is a modern, professional, fully functional, database-driven rental home finder web platform designed to help people discover suitable rental homes across all 14 districts of Kerala.
 
 ---
 
-## 🔑 Demonstration One-Click Login Credentials
+## 🌟 Key Project Highlights
 
-The database is pre-seeded with verified test accounts across all roles:
+1. **Innovative Smart Rental Home Matching Algorithm**
+   - Transparent rule-based weighted recommendation engine:
+     - **District Match:** 30%
+     - **Budget Match:** 30%
+     - **Bedrooms (BHK) Match:** 20%
+     - **Preferred Square Feet Match:** 15%
+     - **Town / Locality Match:** 5%
+     - **Total:** 100%
+   - Dynamically calculates and displays matching badges (e.g. `100% Match`, `95% Match`, `85% Match`).
+   - Automatically recommends closest matching alternatives when exact criteria yield limited results.
+
+2. **Coverage of All 14 Districts of Kerala (56+ Demo Properties)**
+   - Includes **at least 4 distinct, fully specified rental properties per district**:
+     - Thiruvananthapuram, Kollam, Pathanamthitta, Alappuzha, Kottayam, Idukki, Ernakulam, Thrissur, Palakkad, Malappuram, Kozhikode, Wayanad, Kannur, Kasaragod.
+   - Varied realistic rents, security deposits, BHK options, property types, and facilities.
+   - Realistic Kerala amenities: Open sweet well water, KWA connection, 3-Phase KSEB with inverter, rainwater harvesting, covered car porch.
+
+3. **Prominent Monthly Rent Highlighting**
+   - The monthly rent is visually prioritized on every property card with bold typography and strong contrast directly below the photograph and as a high-contrast overlay (`₹18,000 / month`).
+
+4. **Interactive Location & Map Coordinates**
+   - Embedded interactive **Leaflet.js / OpenStreetMap** map with custom Kerala green pin.
+   - Direct **"Open in Google Maps"** navigation button with accurate GPS coordinates.
+   - Categorized nearby landmarks with verified distances (Hospitals, Schools, Transit, Supermarkets).
+
+5. **Direct Owner Contact & WhatsApp Click-to-Chat**
+   - **Call Owner Button:** Direct `tel:` phone call integration.
+   - **Chat on WhatsApp Button:** Opens WhatsApp Click-to-Chat with pre-filled enquiry message mentioning property title and ID.
+
+6. **Tenant & Visitor Feedback System**
+   - 1-to-5 star rating and review submission for authenticated users.
+   - Dynamic calculation of average rating and total review counts.
+   - Administrative review moderation and deletion.
+
+7. **Secure Administrator Control Center**
+   - Dedicated separate Admin Login (`/admin/login`).
+   - 6 Live database statistical counters:
+     1. Total Registered Users
+     2. Total Rental Properties
+     3. Available Properties
+     4. Unavailable Properties
+     5. Total Districts
+     6. Total Feedback Reviews
+   - **Feature A:** Add New Rental House with multi-photo upload.
+   - **Feature B:** Edit Property Details.
+   - **Feature C:** Manage Property Photographs (upload, delete, set primary cover).
+   - **Feature D:** Manage Listings directory with search and district filtering.
+   - **Feature E:** Manage User Feedback & Reviews.
+   - **Feature F:** Delete Property with safe cascade cleanup.
+
+---
+
+## 🗄️ SQLite Database Schema (ER Diagram)
+
+Implemented using strict relational integrity and foreign keys:
+
+1. **`users`**: `user_id` (PK), `name`, `email` (UNIQUE), `password_hash`, `phone`, `role`, `created_at`
+2. **`admins`**: `admin_id` (PK), `email` (UNIQUE), `password_hash`, `name`, `created_at`
+3. **`owners`**: `owner_id` (PK), `name`, `phone`, `email`, `contact_type`, `created_at`
+4. **`districts`**: `district_id` (PK), `district_name` (UNIQUE), `malayalam_name`, `image_path`, `description`
+5. **`properties`**: `property_id` (PK), `owner_id` (FK), `district_id` (FK), `title`, `description`, `rent`, `deposit`, `bhk`, `area`, `address`, `landmarks`, `availability`, `town`, `pincode`, `bathrooms`, `furnishing`, `property_type`, `parking`, `water_supply`, `facilities`, `latitude`, `longitude`, `property_code`, `slug`, `created_at`
+6. **`property_photos`**: `photo_id` (PK), `property_id` (FK), `photo_path`, `photo_type`, `is_primary`
+7. **`reviews`**: `review_id` (PK), `user_id` (FK), `property_id` (FK), `rating`, `feedback`, `review_date`, `visit_type`, `water_rating`, `location_rating`, `landlord_rating`
+
+---
+
+## 🔑 Demonstration Login Credentials
 
 | Role | Email | Password | Description |
 |---|---|---|---|
-| **Admin** | `admin@nestkerala.com` | `Admin@123` | Full access to Admin Control Center, Approvals & Moderation |
-| **Owner 1** | `kr.menon@keralahomes.in` | `Owner@123` | Homeowner with listings in Kakkanad (Kochi), Kozhikode, etc. |
-| **Owner 2** | `dr.varma@heritagekerala.com` | `Owner@123` | Homeowner with Nalukettu in Kowdiar (Trivandrum), Thrissur, etc. |
-| **Agent** | `mathew.kurian@malabarproperties.com` | `Agent@123` | Real estate agent with listings in Wayanad, Marine Drive, etc. |
-| **Tenant** | `rahul.nair@techkerala.com` | `Tenant@123` | Active seeker with saved homes and sent visit requests |
+| **Administrator** | `admin@nestkerala.com` | `admin123` | Full access to Admin Dashboard, Add/Edit/Delete Properties & Moderation |
+| **Tenant User** | `rahul.nair@techkerala.com` | `Tenant@123` | Registered seeker account with review submission privileges |
 
 ---
 
-## 🚀 How to Run the Application
+## 🚀 How to Run in Visual Studio Code
 
-1. Clone or navigate to the repository:
+### Method 1: Using the Batch Runner (One-Click)
+Double-click `run.bat` in the project folder.
+
+### Method 2: Manual Terminal Launch
+1. Open the project folder in Visual Studio Code:
    ```bash
-   git clone git@github.com:fathimafarhana8714-rgb/kerala-trip.git
-   cd kerala-trip
+   cd "C:\HOME PROJECT\home pro"
    ```
-
-2. Install dependencies:
+2. Activate Python environment or install requirements:
    ```bash
    pip install -r requirements.txt
    ```
-
-3. Start the application:
+3. Run the application:
    ```bash
    python app.py
    ```
-   *On Windows, you can also double-click `run.bat` or use `.\.venv\Scripts\python.exe app.py`.*
-
-4. Open your browser and visit:
+4. Open your web browser and navigate to:
    ```
    http://127.0.0.1:5000
    ```
-
----
-
-## 🧪 Automated Test Suite
-
-A comprehensive test suite covering all 15 functional areas is included:
-```powershell
-python test_app.py
-```
-Test suite verifies:
-- Homepage rendering and branding (200 OK)
-- Properties search and query filtering (200 OK)
-- District filtering (200 OK)
-- Smart Recommendation engine on low matches (200 OK)
-- Property details page with Leaflet map and landmarks (200 OK)
-- Direct Enquiry form database submission (200 OK)
-- Property Visit booking workflow (200 OK)
-- Saved Homes & Favorites system (200 OK)
-- Side-by-side comparison matrix (200 OK)
-- Admin Login & Control Center (200 OK)
-- List Your Property submission pipeline (200 OK)
-- Owner & Agent dashboard (200 OK)
-- Bilingual language toggle (200 OK)
-- Property Feedback view page (200 OK)
-- Property Feedback Submission and validation (200 OK)

@@ -64,6 +64,12 @@
           </div>
         </div>
 
+        <!-- Preferred Area (Sq.Ft) -->
+        <div class="filter-group">
+          <div class="filter-group-title">Preferred Area (Sq.Ft)</div>
+          <input type="number" name="area" value="{{ selected_area or '' }}" placeholder="e.g. 1800 sq.ft" class="form-control" step="100">
+        </div>
+
         <!-- Property Type -->
         <div class="filter-group">
           <div class="filter-group-title">Property Type</div>
@@ -144,6 +150,11 @@
               <img src="{{ prop.primary_image_url }}" alt="{{ prop.title }}" class="card-img" loading="lazy">
             </a>
             <div class="card-top-badges">
+              {% if prop.match_percentage %}
+              <span class="badge" style="background: var(--gold-500); color: #103D32; font-weight: 800; border: 1px solid #B45309; box-shadow: 0 2px 4px rgba(0,0,0,0.15);">
+                ★ {{ prop.match_percentage }}% Match
+              </span>
+              {% endif %}
               {% if prop.is_verified %}
               <span class="badge badge-verified">&check; Verified</span>
               {% endif %}
@@ -161,16 +172,26 @@
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 3 21 3 21 8"></polyline><line x1="4" y1="20" x2="21" y2="3"></line><polyline points="21 16 21 21 16 21"></polyline><line x1="15" y1="15" x2="21" y2="21"></line></svg>
             </button>
 
-            <div class="card-price-overlay">
+            <!-- Prominent Price Overlay -->
+            <div class="card-price-overlay" style="background: linear-gradient(180deg, rgba(16, 61, 50, 0) 0%, rgba(16, 61, 50, 0.95) 100%); padding: 1.25rem 1rem 0.75rem;">
               <div>
-                <span class="card-rent">{{ prop.formatted_rent }}</span>
-                <span class="card-rent-period">/mo</span>
+                <span class="card-rent" style="font-size: 1.45rem; font-weight: 800; color: #FFFFFF; text-shadow: 0 1px 3px rgba(0,0,0,0.6);">{{ prop.formatted_rent }}</span>
+                <span class="card-rent-period" style="color: #D5AD62; font-weight: 700; font-size: 0.9rem;">/ month</span>
               </div>
-              <div class="card-deposit">Deposit: {{ prop.formatted_deposit }}</div>
+              <div class="card-deposit" style="color: #F8F7F2; font-size: 0.82rem;">Security Deposit: {{ prop.formatted_deposit }}</div>
             </div>
           </div>
 
           <div class="card-body">
+            <!-- Directly Below Photo Prominent Rent Highlight -->
+            <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.35rem; padding-bottom: 0.35rem; border-bottom: 1px solid var(--border-light);">
+              <div style="font-size: 1.3rem; font-weight: 800; color: #103D32; letter-spacing: -0.02em;">
+                {{ prop.formatted_rent }} <span style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted);">/ month</span>
+              </div>
+              <span class="badge" style="background: #E8F4F0; color: #087F5B; font-weight: 700; font-size: 0.76rem;">
+                {{ prop.availability }}
+              </span>
+            </div>
             <div class="card-location" style="display: flex; justify-content: space-between; align-items: center;">
               <div style="display: flex; align-items: center; gap: 0.35rem;">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>

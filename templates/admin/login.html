@@ -1,0 +1,69 @@
+{% extends 'base.html' %}
+
+{% block title %}Admin Sign In | Nest Kerala – Rental Home Finder{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 480px; padding: 4rem 1.25rem 6rem;">
+  <div style="background: white; border: 2px solid var(--gold-500); border-radius: var(--radius-lg); padding: 2.5rem; box-shadow: var(--shadow-lg);">
+    
+    <!-- Shield / Admin Icon Header -->
+    <div style="text-align: center; margin-bottom: 2rem;">
+      <div style="width: 58px; height: 58px; background: #FEF3C7; color: #B45309; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem;">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+      </div>
+      <h1 style="font-size: 1.6rem; font-weight: 800; color: var(--primary-900);">Admin Portal Login</h1>
+      <p class="text-muted" style="font-size: 0.88rem;">Authorized Nest Kerala administrative access only.</p>
+    </div>
+
+    <!-- Alert / Notice -->
+    <div style="background: #FFFBEB; border-left: 4px solid var(--gold-500); padding: 0.85rem 1rem; border-radius: var(--radius-sm); margin-bottom: 1.5rem; font-size: 0.84rem; color: #92400E;">
+      <strong>Restricted Access:</strong> This dashboard is protected for platform management, rental property verification, photo management, and feedback moderation.
+    </div>
+
+    <!-- Admin Form -->
+    <form action="{{ url_for('admin_login') }}" method="POST">
+      <div class="form-group mb-3">
+        <label class="form-label required" style="font-weight: 600; font-size: 0.9rem;">Administrator Email</label>
+        <div style="position: relative;">
+          <input type="email" name="email" id="adminEmail" class="form-control" required placeholder="admin@nestkerala.com" style="padding-left: 2.4rem;">
+          <svg style="position: absolute; left: 0.85rem; top: 50%; transform: translateY(-50%); color: var(--text-muted);" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+        </div>
+      </div>
+
+      <div class="form-group mb-3">
+        <label class="form-label required" style="font-weight: 600; font-size: 0.9rem;">Admin Password</label>
+        <div style="position: relative;">
+          <input type="password" name="password" id="adminPassword" class="form-control" required placeholder="••••••••" style="padding-left: 2.4rem;">
+          <svg style="position: absolute; left: 0.85rem; top: 50%; transform: translateY(-50%); color: var(--text-muted);" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-primary-emerald btn-block btn-lg" style="margin-top: 1.5rem; width: 100%; font-weight: 700; background: var(--primary-900);">
+        Access Admin Dashboard &rarr;
+      </button>
+    </form>
+
+    <!-- Quick Demonstration One-Click Admin Autofill -->
+    <div style="margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--border-light);">
+      <div style="font-size: 0.76rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.75rem; text-align: center;">
+        Demonstration One-Click Credentials
+      </div>
+      <button type="button" class="btn btn-outline-emerald btn-sm" style="width: 100%; text-align: center;" onclick="quickAdmin('admin@nestkerala.com', 'admin123')">
+        Auto-Fill Admin Credentials (admin@nestkerala.com)
+      </button>
+    </div>
+
+    <!-- Return to User Login -->
+    <div style="text-align: center; margin-top: 1.5rem; font-size: 0.88rem;">
+      <a href="{{ url_for('login') }}" class="text-muted">&larr; Return to Standard User Login</a>
+    </div>
+  </div>
+</div>
+
+<script>
+  function quickAdmin(email, pwd) {
+    document.getElementById('adminEmail').value = email;
+    document.getElementById('adminPassword').value = pwd;
+  }
+</script>
+{% endblock %}

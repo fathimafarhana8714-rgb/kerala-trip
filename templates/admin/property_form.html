@@ -1,0 +1,250 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ 'Edit Property' if is_edit else 'Add New Rental House' }} | Nest Kerala Admin{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 900px; padding: 3rem 1.25rem 6rem;">
+  
+  <!-- Breadcrumb Navigation -->
+  <nav style="margin-bottom: 1.5rem; font-size: 0.88rem; color: var(--text-muted);">
+    <a href="{{ url_for('admin_dashboard') }}" style="color: var(--primary-800); text-decoration: none;">&larr; Admin Dashboard</a> /
+    <span style="color: var(--text-main); font-weight: 600;">{{ 'Edit Property #' ~ property.property_id if is_edit else 'Add New Rental Home' }}</span>
+  </nav>
+
+  <div style="background: white; border: 1px solid var(--border-light); border-radius: var(--radius-lg); padding: 2.5rem; box-shadow: var(--shadow-md);">
+    
+    <div style="margin-bottom: 2rem; border-bottom: 1px solid var(--border-light); padding-bottom: 1.25rem;">
+      <h1 style="font-size: 1.6rem; font-weight: 800; color: var(--primary-900);">
+        {{ 'Edit Rental Property: ' ~ property.title if is_edit else 'Add New Rental House to Nest Kerala' }}
+      </h1>
+      <p class="text-muted" style="font-size: 0.9rem; margin-bottom: 0;">
+        {{ 'Update specifications, pricing, availability, and owner credentials below.' if is_edit else 'Fill out the comprehensive property details to publish across Kerala districts.' }}
+      </p>
+    </div>
+
+    <form action="{{ url_for('admin_edit_property', property_id=property.property_id) if is_edit else url_for('admin_add_property') }}" method="POST" enctype="multipart/form-data">
+      
+      <!-- Section 1: Basic Information -->
+      <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--primary-800); margin-bottom: 1rem; border-left: 3px solid var(--emerald-600); padding-left: 0.5rem;">
+        1. Basic Property Information
+      </h3>
+
+      <div class="form-group mb-3">
+        <label class="form-label required">Property Title</label>
+        <input type="text" name="title" class="form-control" required placeholder="e.g. 3 BHK Luxury Nalukettu Villa in Kowdiar" value="{{ property.title if is_edit else '' }}">
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 1rem;">
+        <div class="form-group">
+          <label class="form-label required">District</label>
+          <select name="district_id" class="form-control" required>
+            <option value="">Select Kerala District</option>
+            {% for dist in districts %}
+            <option value="{{ dist.district_id }}" {% if is_edit and property.district_id == dist.district_id %}selected{% endif %}>
+              {{ dist.district_name }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label required">Town / Locality</label>
+          <input type="text" name="town" class="form-control" required placeholder="e.g. Kowdiar, Kakkanad" value="{{ property.town if is_edit else '' }}">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label required">PIN Code</label>
+          <input type="text" name="pincode" class="form-control" required placeholder="695003" value="{{ property.pincode if is_edit else '' }}">
+        </div>
+      </div>
+
+      <div class="form-group mb-4">
+        <label class="form-label required">Complete Property Address</label>
+        <textarea name="address" class="form-control" rows="2" required placeholder="Street address, house name / number, near landmark...">{{ property.address if is_edit else '' }}</textarea>
+      </div>
+
+      <!-- Section 2: Pricing & Specifications -->
+      <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--primary-800); margin-bottom: 1rem; border-left: 3px solid var(--gold-500); padding-left: 0.5rem;">
+        2. Pricing & Property Specifications
+      </h3>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1rem;">
+        <div class="form-group">
+          <label class="form-label required">Monthly Rent (₹)</label>
+          <input type="number" name="rent" class="form-control" required placeholder="18000" value="{{ property.rent if is_edit else '' }}">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label required">Security Deposit (₹)</label>
+          <input type="number" name="deposit" class="form-control" required placeholder="50000" value="{{ property.deposit if is_edit else '' }}">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label required">Bedrooms (BHK)</label>
+          <select name="bhk" class="form-control" required>
+            <option value="1" {% if is_edit and property.bhk == 1 %}selected{% endif %}>1 BHK</option>
+            <option value="2" {% if is_edit and property.bhk == 2 %}selected{% endif %}>2 BHK</option>
+            <option value="3" {% if (is_edit and property.bhk == 3) or not is_edit %}selected{% endif %}>3 BHK</option>
+            <option value="4" {% if is_edit and property.bhk == 4 %}selected{% endif %}>4 BHK</option>
+            <option value="5" {% if is_edit and property.bhk == 5 %}selected{% endif %}>5+ BHK</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label required">Bathrooms</label>
+          <input type="number" name="bathrooms" class="form-control" required min="1" max="10" value="{{ property.bathrooms if is_edit else 2 }}">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label required">Total Area (Sq.Ft)</label>
+          <input type="number" name="area" class="form-control" required placeholder="1850" value="{{ property.area if is_edit else '' }}">
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+        <div class="form-group">
+          <label class="form-label required">Property Type</label>
+          <select name="property_type" class="form-control" required>
+            <option value="Independent Villa" {% if is_edit and property.property_type == 'Independent Villa' %}selected{% endif %}>Independent Villa</option>
+            <option value="Traditional Kerala Nalukettu" {% if is_edit and property.property_type == 'Traditional Kerala Nalukettu' %}selected{% endif %}>Traditional Kerala Nalukettu</option>
+            <option value="Modern Apartment" {% if is_edit and property.property_type == 'Modern Apartment' %}selected{% endif %}>Modern Apartment</option>
+            <option value="Gated Community Villa" {% if is_edit and property.property_type == 'Gated Community Villa' %}selected{% endif %}>Gated Community Villa</option>
+            <option value="Row House" {% if is_edit and property.property_type == 'Row House' %}selected{% endif %}>Row House</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label required">Furnishing Status</label>
+          <select name="furnishing" class="form-control" required>
+            <option value="Fully Furnished" {% if is_edit and property.furnishing == 'Fully Furnished' %}selected{% endif %}>Fully Furnished</option>
+            <option value="Semi-Furnished" {% if (is_edit and property.furnishing == 'Semi-Furnished') or not is_edit %}selected{% endif %}>Semi-Furnished</option>
+            <option value="Unfurnished" {% if is_edit and property.furnishing == 'Unfurnished' %}selected{% endif %}>Unfurnished</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label required">Availability Status</label>
+          <select name="availability" class="form-control" required>
+            <option value="Available" {% if (is_edit and property.availability == 'Available') or not is_edit %}selected{% endif %}>Available</option>
+            <option value="Under Offer" {% if is_edit and property.availability == 'Under Offer' %}selected{% endif %}>Under Offer</option>
+            <option value="Rented" {% if is_edit and property.availability == 'Rented' %}selected{% endif %}>Rented</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Section 3: Facilities, Water & Parking -->
+      <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--primary-800); margin-bottom: 1rem; border-left: 3px solid var(--emerald-600); padding-left: 0.5rem;">
+        3. Housing Facilities & Amenities
+      </h3>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem; margin-bottom: 1rem;">
+        <div class="form-group">
+          <label class="form-label required">Water Supply</label>
+          <input type="text" name="water_supply" class="form-control" required placeholder="e.g. Dedicated Sweet Open Well & KWA Line" value="{{ property.water_supply if is_edit else 'Dedicated Open Well & 24x7 KWA' }}">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label required">Parking Facility</label>
+          <input type="text" name="parking" class="form-control" required placeholder="e.g. Covered 2-Car Porch" value="{{ property.parking if is_edit else 'Covered 2-Car Porch' }}">
+        </div>
+      </div>
+
+      <div class="form-group mb-3">
+        <label class="form-label required">Other Facilities (Comma-separated)</label>
+        <input type="text" name="facilities" class="form-control" required placeholder="Covered Parking, 24x7 Water, Inverter Backup, Modular Kitchen, Balcony, Gated Security" value="{{ property.facilities if is_edit else 'Covered Parking, 24x7 Water, Inverter Backup, Modular Kitchen, Balcony, Gated Security' }}">
+      </div>
+
+      <div class="form-group mb-4">
+        <label class="form-label required">Detailed Description</label>
+        <textarea name="description" class="form-control" rows="4" required placeholder="Describe property architecture, rooms, kitchen, surroundings, and tenant suitability...">{{ property.description if is_edit else '' }}</textarea>
+      </div>
+
+      <!-- Section 4: Location Coordinates & Nearby Landmarks -->
+      <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--primary-800); margin-bottom: 1rem; border-left: 3px solid var(--gold-500); padding-left: 0.5rem;">
+        4. Location, Maps & Landmarks
+      </h3>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+        <div class="form-group">
+          <label class="form-label">Latitude</label>
+          <input type="text" name="latitude" class="form-control" placeholder="9.9816" value="{{ property.latitude if is_edit else '' }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Longitude</label>
+          <input type="text" name="longitude" class="form-control" placeholder="76.2999" value="{{ property.longitude if is_edit else '' }}">
+        </div>
+      </div>
+
+      <div class="form-group mb-4">
+        <label class="form-label">Nearby Landmarks (Format: Name: Distance | Name: Distance)</label>
+        <input type="text" name="landmarks" class="form-control" placeholder="Hospital: 2 km | School: 1.5 km | Railway Station: 3.2 km | Market: 0.8 km" value="{{ property.landmarks if is_edit else 'Hospital: 2.1 km | School: 1.4 km | Bus Station: 2.5 km | Supermarket: 0.8 km' }}">
+      </div>
+
+      <!-- Section 5: Owner Information -->
+      <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--primary-800); margin-bottom: 1rem; border-left: 3px solid var(--emerald-600); padding-left: 0.5rem;">
+        5. Property Owner Information
+      </h3>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+        <div class="form-group">
+          <label class="form-label required">Owner Name</label>
+          <input type="text" name="owner_name" class="form-control" required placeholder="e.g. Dr. Jayasree Varma" value="{{ property.owner_name if is_edit else '' }}">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label required">Owner Phone Number (Phone & WhatsApp)</label>
+          <input type="tel" name="owner_phone" class="form-control" required placeholder="+91 94471 98765" value="{{ property.contact_phone if is_edit else '' }}">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Owner Email</label>
+          <input type="email" name="owner_email" class="form-control" placeholder="owner@keralahomes.in" value="{{ property.contact_email if is_edit else '' }}">
+        </div>
+      </div>
+
+      <!-- Section 6: Multiple Property Photographs -->
+      <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--primary-800); margin-bottom: 1rem; border-left: 3px solid var(--gold-500); padding-left: 0.5rem;">
+        6. Property Photographs
+      </h3>
+
+      {% if is_edit and property.photos.count() > 0 %}
+      <div style="margin-bottom: 1.25rem;">
+        <div style="font-size: 0.88rem; font-weight: 600; margin-bottom: 0.5rem;">Current Photographs ({{ property.photos.count() }})</div>
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+          {% for ph in property.photos.all() %}
+          <div style="position: relative; width: 85px; height: 60px; border-radius: 4px; overflow: hidden; border: 2px solid {% if ph.is_primary %}var(--gold-500){% else %}var(--border-light){% endif %};">
+            <img src="{{ ph.photo_path }}" alt="" style="width: 100%; height: 100%; object-fit: cover;">
+            {% if ph.is_primary %}
+            <span style="position: absolute; bottom: 0; left: 0; right: 0; background: var(--gold-500); color: black; font-size: 9px; font-weight: 800; text-align: center;">PRIMARY</span>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+        <div style="margin-top: 0.5rem;">
+          <a href="{{ url_for('admin_manage_photos', property_id=property.property_id) }}" class="btn btn-outline-emerald btn-sm">
+            Open Full Photo Manager &rarr;
+          </a>
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="form-group mb-4">
+        <label class="form-label">{{ 'Upload Additional Photographs' if is_edit else 'Upload Multiple Property Photographs (Exterior, Living Room, Bedroom, Kitchen, Bathroom)' }}</label>
+        <input type="file" name="property_photos" class="form-control" multiple accept="image/*">
+        <small class="text-muted">You can select multiple photos at once. Supported formats: JPG, PNG, WEBP.</small>
+      </div>
+
+      <!-- Submit & Cancel Buttons -->
+      <div style="display: flex; gap: 1rem; margin-top: 2rem;">
+        <button type="submit" class="btn btn-primary-emerald btn-lg" style="flex: 2; font-weight: 700;">
+          {{ 'Save Changes & Update Property' if is_edit else 'Save and Publish Rental Property' }}
+        </button>
+        <a href="{{ url_for('admin_dashboard') }}" class="btn btn-ghost btn-lg" style="flex: 1; border: 1px solid var(--border-light); text-align: center;">
+          Cancel
+        </a>
+      </div>
+
+    </form>
+  </div>
+</div>
+{% endblock %}

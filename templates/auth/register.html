@@ -1,68 +1,88 @@
 {% extends 'base.html' %}
 
-{% block title %}Create an Account | NestKerala Registration{% endblock %}
+{% block title %}Create Account | Nest Kerala – Rental Home Finder{% endblock %}
 
 {% block content %}
 <div class="container" style="max-width: 520px; padding: 4rem 1.25rem 6rem;">
   <div style="background: white; border: 1px solid var(--border-light); border-radius: var(--radius-lg); padding: 2.5rem; box-shadow: var(--shadow-md);">
+    
+    <!-- Header -->
     <div style="text-align: center; margin-bottom: 2rem;">
-      <img src="{{ url_for('static', filename='images/logo.svg') }}" alt="NestKerala" height="42" style="margin: 0 auto 1rem;">
+      <img src="{{ url_for('static', filename='images/logo.svg') }}" alt="Nest Kerala" height="46" style="margin: 0 auto 1rem;">
       <h1 style="font-size: 1.6rem; font-weight: 800; color: var(--primary-900);">Create Your Account</h1>
-      <p class="text-muted" style="font-size: 0.9rem;">Join Kerala's authentic rental community.</p>
+      <p class="text-muted" style="font-size: 0.9rem;">Join Nest Kerala to find and connect with rental homes across Kerala.</p>
     </div>
 
-    <form action="{{ url_for('register') }}" method="POST">
-      <div class="form-group">
-        <label class="form-label required">I am a</label>
-        <select name="role" id="roleSelector" class="form-control" onchange="toggleAgentField(this.value)">
-          <option value="tenant">Tenant / Home Seeker</option>
-          <option value="owner">Individual Homeowner / Landlord</option>
-          <option value="agent">Licensed Real Estate Agent / Firm</option>
-        </select>
+    <!-- Navigation Options / Tabs -->
+    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.35rem; margin-bottom: 1.75rem; background: var(--bg-cream); padding: 0.35rem; border-radius: var(--radius-sm); border: 1px solid var(--border-light);">
+      <a href="{{ url_for('login') }}" class="btn btn-sm btn-ghost" style="font-size: 0.82rem; padding: 0.45rem 0.2rem; text-align: center; font-weight: 600; color: var(--text-sub);">
+        User Login
+      </a>
+      <a href="{{ url_for('register') }}" class="btn btn-sm btn-primary-emerald" style="font-size: 0.82rem; padding: 0.45rem 0.2rem; text-align: center; font-weight: 700;">
+        Register
+      </a>
+      <a href="{{ url_for('admin_login') }}" class="btn btn-sm btn-ghost" style="font-size: 0.82rem; padding: 0.45rem 0.2rem; text-align: center; font-weight: 600; color: var(--gold-600);">
+        Admin Login
+      </a>
+    </div>
+
+    <!-- Registration Form -->
+    <form action="{{ url_for('register') }}" method="POST" id="regForm" onsubmit="return validatePasswords()">
+      <!-- Full Name -->
+      <div class="form-group mb-3">
+        <label class="form-label required" style="font-weight: 600; font-size: 0.9rem;">Full Name</label>
+        <input type="text" name="full_name" class="form-control" required placeholder="e.g. Anand Varma" value="{{ request.form.get('full_name', '') }}">
       </div>
 
-      <div class="form-group" id="agencyFieldWrap" style="display: none;">
-        <label class="form-label required">Real Estate Firm / Agency Name</label>
-        <input type="text" name="agency_name" class="form-control" placeholder="e.g. Kochi Prime Properties">
+      <!-- Email Address -->
+      <div class="form-group mb-3">
+        <label class="form-label required" style="font-weight: 600; font-size: 0.9rem;">Email Address</label>
+        <input type="email" name="email" class="form-control" required placeholder="name@example.com" value="{{ request.form.get('email', '') }}">
       </div>
 
-      <div class="form-group">
-        <label class="form-label required">Full Legal Name</label>
-        <input type="text" name="full_name" class="form-control" required placeholder="e.g. Anand Varma">
+      <!-- Phone Number -->
+      <div class="form-group mb-3">
+        <label class="form-label required" style="font-weight: 600; font-size: 0.9rem;">Phone Number</label>
+        <input type="tel" name="phone" class="form-control" required placeholder="+91 98470 XXXXX" value="{{ request.form.get('phone', '') }}">
       </div>
 
-      <div class="form-group">
-        <label class="form-label required">Email Address</label>
-        <input type="email" name="email" class="form-control" required placeholder="name@example.com">
+      <!-- Password -->
+      <div class="form-group mb-3">
+        <label class="form-label required" style="font-weight: 600; font-size: 0.9rem;">Password</label>
+        <input type="password" name="password" id="regPassword" class="form-control" required minlength="6" placeholder="At least 6 characters">
       </div>
 
-      <div class="form-group">
-        <label class="form-label required">Mobile Phone Number</label>
-        <input type="tel" name="phone" class="form-control" required placeholder="+91 98470 XXXXX">
+      <!-- Confirm Password -->
+      <div class="form-group mb-3">
+        <label class="form-label required" style="font-weight: 600; font-size: 0.9rem;">Confirm Password</label>
+        <input type="password" name="confirm_password" id="regConfirmPassword" class="form-control" required minlength="6" placeholder="Re-enter your password">
+        <div id="passwordError" style="color: #DC2626; font-size: 0.82rem; margin-top: 0.35rem; display: none;">
+          Passwords do not match. Please recheck.
+        </div>
       </div>
 
-      <div class="form-group">
-        <label class="form-label required">Password</label>
-        <input type="password" name="password" class="form-control" required minlength="6" placeholder="At least 6 characters">
-      </div>
-
-      <button type="submit" class="btn btn-primary-emerald btn-block btn-lg" style="margin-top: 1.5rem;">
-        Register Account
+      <button type="submit" class="btn btn-primary-emerald btn-block btn-lg" style="margin-top: 1.5rem; width: 100%; font-weight: 700;">
+        Register Button
       </button>
     </form>
 
     <div style="text-align: center; margin-top: 1.5rem; font-size: 0.9rem; color: var(--text-muted);">
-      Already have an account? <a href="{{ url_for('login') }}" style="font-weight: 700;">Sign in here</a>
+      Already have an account? <a href="{{ url_for('login') }}" style="font-weight: 700; color: var(--primary-800);">Sign in here</a>
     </div>
   </div>
 </div>
 
 <script>
-  function toggleAgentField(role) {
-    const wrap = document.getElementById('agencyFieldWrap');
-    if (wrap) {
-      wrap.style.display = (role === 'agent') ? 'block' : 'none';
+  function validatePasswords() {
+    const p1 = document.getElementById('regPassword').value;
+    const p2 = document.getElementById('regConfirmPassword').value;
+    const err = document.getElementById('passwordError');
+    if (p1 !== p2) {
+      err.style.display = 'block';
+      return false;
     }
+    err.style.display = 'none';
+    return true;
   }
 </script>
 {% endblock %}

@@ -1,0 +1,113 @@
+{% extends 'base.html' %}
+
+{% block title %}Manage Feedback & Reviews | Nest Kerala Admin{% endblock %}
+
+{% block content %}
+<div class="container" style="padding: 3rem 1.25rem 6rem;">
+
+  <!-- Breadcrumb -->
+  <nav style="margin-bottom: 1.5rem; font-size: 0.88rem; color: var(--text-muted);">
+    <a href="{{ url_for('admin_dashboard') }}" style="color: var(--primary-800); text-decoration: none;">&larr; Admin Dashboard</a> /
+    <span style="color: var(--text-main); font-weight: 600;">Manage Visitor & Tenant Reviews</span>
+  </nav>
+
+  <div style="background: white; border: 1px solid var(--border-light); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); overflow: hidden;">
+    
+    <div style="padding: 1.5rem; border-bottom: 1px solid var(--border-light); background: #FAFBF9; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+      <div>
+        <h1 style="font-size: 1.4rem; font-weight: 800; color: var(--primary-900); margin-bottom: 0.25rem;">
+          Visitor & Tenant Feedback Moderation ({{ reviews|length }})
+        </h1>
+        <p class="text-muted" style="font-size: 0.88rem; margin-bottom: 0;">
+          All reviews submitted by users for rental homes across Kerala. Moderate ratings or remove inappropriate remarks.
+        </p>
+      </div>
+
+      <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary-emerald btn-sm">
+        Return to Dashboard
+      </a>
+    </div>
+
+    <!-- Reviews Table -->
+    <div style="overflow-x: auto;">
+      <table class="dashboard-table" style="width: 100%; border-collapse: collapse;">
+        <thead>
+          <tr style="background: var(--bg-cream); border-bottom: 2px solid var(--border-light); text-align: left; font-size: 0.82rem; text-transform: uppercase; color: var(--text-sub);">
+            <th style="padding: 0.85rem 1rem;">Property Name & ID</th>
+            <th style="padding: 0.85rem 1rem;">Reviewer & Type</th>
+            <th style="padding: 0.85rem 1rem;">Rating</th>
+            <th style="padding: 0.85rem 1rem; width: 40%;">Feedback Content</th>
+            <th style="padding: 0.85rem 1rem;">Date</th>
+            <th style="padding: 0.85rem 1rem; text-align: right;">Moderation</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for rev in reviews %}
+          <tr style="border-bottom: 1px solid var(--border-light); font-size: 0.9rem;">
+            <!-- Property Name & ID -->
+            <td style="padding: 0.85rem 1rem;">
+              <strong>
+                <a href="{{ url_for('property_detail', property_id=rev.property_id) }}" target="_blank" style="color: var(--primary-900); text-decoration: none;">
+                  {{ rev.property_rel.title if rev.property_rel else ('Property #' ~ rev.property_id) }}
+                </a>
+              </strong>
+              <div style="font-size: 0.78rem; color: var(--text-muted);">
+                {{ rev.property_rel.district if rev.property_rel else '' }} &bull; {{ rev.property_rel.town if rev.property_rel else '' }}
+              </div>
+            </td>
+
+            <!-- Reviewer -->
+            <td style="padding: 0.85rem 1rem;">
+              <div style="font-weight: 700;">{{ rev.reviewer_name }}</div>
+              <span class="badge" style="background: #E8F4F0; color: #0F4C3A; font-size: 0.72rem;">{{ rev.visit_type }}</span>
+            </td>
+
+            <!-- Rating Stars -->
+            <td style="padding: 0.85rem 1rem;">
+              <div style="color: #F59E0B; font-weight: 800; font-size: 1rem;">
+                {% for i in range(rev.rating) %}★{% endfor %}
+              </div>
+              <small class="text-muted">{{ rev.rating }} / 5 Stars</small>
+            </td>
+
+            <!-- Feedback -->
+            <td style="padding: 0.85rem 1rem;">
+              {% if rev.headline %}
+              <div style="font-weight: 700; color: var(--primary-900); margin-bottom: 0.2rem;">
+                "{{ rev.headline }}"
+              </div>
+              {% endif %}
+              <p style="font-size: 0.85rem; color: var(--text-sub); line-height: 1.4; margin-bottom: 0.25rem;">
+                {{ rev.feedback }}
+              </p>
+              <small class="text-muted">Water: {{ rev.water_rating }}/5 &bull; Location: {{ rev.location_rating }}/5 &bull; Landlord: {{ rev.landlord_rating }}/5</small>
+            </td>
+
+            <!-- Date -->
+            <td style="padding: 0.85rem 1rem; font-size: 0.82rem; color: var(--text-muted); white-space: nowrap;">
+              {{ rev.review_date.strftime('%d %b %Y') if rev.review_date else 'Recent' }}
+            </td>
+
+            <!-- Action -->
+            <td style="padding: 0.85rem 1rem; text-align: right;">
+              <form action="{{ url_for('admin_delete_review', review_id=rev.review_id) }}" method="POST" onsubmit="return confirm('Permanently remove this review?');" style="margin: 0;">
+                <button type="submit" class="btn btn-danger-soft btn-sm">
+                  Delete Review
+                </button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if not reviews %}
+    <div style="padding: 4rem 2rem; text-align: center; color: var(--text-muted);">
+      No user feedback reviews submitted yet.
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}

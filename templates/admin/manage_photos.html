@@ -1,0 +1,113 @@
+{% extends 'base.html' %}
+
+{% block title %}Manage Photos – {{ property.title }} | Nest Kerala Admin{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 900px; padding: 3rem 1.25rem 6rem;">
+
+  <!-- Breadcrumb -->
+  <nav style="margin-bottom: 1.5rem; font-size: 0.88rem; color: var(--text-muted);">
+    <a href="{{ url_for('admin_dashboard') }}" style="color: var(--primary-800); text-decoration: none;">&larr; Admin Dashboard</a> /
+    <a href="{{ url_for('property_detail', property_id=property.property_id) }}" style="color: var(--primary-800); text-decoration: none;">{{ property.title }}</a> /
+    <span style="color: var(--text-main); font-weight: 600;">Manage Photos</span>
+  </nav>
+
+  <div style="background: white; border: 1px solid var(--border-light); border-radius: var(--radius-lg); padding: 2.5rem; box-shadow: var(--shadow-md);">
+    
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; border-bottom: 1px solid var(--border-light); padding-bottom: 1.25rem; margin-bottom: 2rem;">
+      <div>
+        <h1 style="font-size: 1.5rem; font-weight: 800; color: var(--primary-900); margin-bottom: 0.25rem;">
+          Manage Photographs for Property #{{ property.property_id }}
+        </h1>
+        <p class="text-muted" style="font-size: 0.9rem; margin-bottom: 0;">{{ property.title }} &bull; {{ property.district }}</p>
+      </div>
+      <a href="{{ url_for('property_detail', property_id=property.property_id) }}" target="_blank" class="btn btn-outline-emerald btn-sm">
+        View Live Listing &rarr;
+      </a>
+    </div>
+
+    <!-- Upload New Photo Section -->
+    <div style="background: var(--bg-cream); border: 1px dashed var(--primary-600); border-radius: var(--radius-md); padding: 1.5rem; margin-bottom: 2.5rem;">
+      <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--primary-900); margin-bottom: 0.75rem;">
+        + Upload New Property Photograph
+      </h3>
+      <form action="{{ url_for('admin_upload_photo', property_id=property.property_id) }}" method="POST" enctype="multipart/form-data" style="display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap;">
+        <div style="flex: 2; min-width: 220px;">
+          <label class="form-label required" style="font-size: 0.85rem;">Select Image File</label>
+          <input type="file" name="photo_file" class="form-control" required accept="image/*">
+        </div>
+        <div style="flex: 1; min-width: 180px;">
+          <label class="form-label" style="font-size: 0.85rem;">Photo Category / Label</label>
+          <select name="photo_type" class="form-control">
+            <option value="Exterior">Exterior</option>
+            <option value="Living Room">Living Room</option>
+            <option value="Bedroom">Bedroom</option>
+            <option value="Kitchen">Kitchen</option>
+            <option value="Bathroom">Bathroom</option>
+            <option value="Balcony & View">Balcony & View</option>
+            <option value="Covered Porch">Covered Porch</option>
+          </select>
+        </div>
+        <button type="submit" class="btn btn-primary-emerald" style="height: 42px;">
+          Upload Photo
+        </button>
+      </form>
+    </div>
+
+    <!-- Existing Photos Grid -->
+    <div>
+      <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--primary-800); margin-bottom: 1.25rem;">
+        Existing Property Photographs ({{ photos|length }})
+      </h3>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1.5rem;">
+        {% for photo in photos %}
+        <div style="background: white; border: 1px solid var(--border-light); border-radius: var(--radius-md); overflow: hidden; box-shadow: var(--shadow-sm); position: relative;">
+          <!-- Image -->
+          <div style="height: 160px; overflow: hidden; position: relative;">
+            <img src="{{ photo.photo_path }}" alt="{{ photo.photo_type }}" style="width: 100%; height: 100%; object-fit: cover;">
+            {% if photo.is_primary %}
+            <span style="position: absolute; top: 10px; left: 10px; background: var(--gold-500); color: black; font-size: 0.75rem; font-weight: 800; padding: 3px 8px; border-radius: 4px; box-shadow: var(--shadow-sm);">
+              ★ PRIMARY COVER IMAGE
+            </span>
+            {% endif %}
+          </div>
+
+          <!-- Body & Actions -->
+          <div style="padding: 1rem;">
+            <div style="font-weight: 700; font-size: 0.9rem; color: var(--primary-900); margin-bottom: 0.5rem;">
+              {{ photo.photo_type }}
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; margin-top: 0.75rem;">
+              {% if not photo.is_primary %}
+              <form action="{{ url_for('admin_set_primary_photo', photo_id=photo.photo_id) }}" method="POST" style="margin: 0;">
+                <button type="submit" class="btn btn-sm btn-outline-emerald" style="font-size: 0.78rem;">
+                  Set as Primary
+                </button>
+              </form>
+              {% else %}
+              <span class="text-muted" style="font-size: 0.78rem; font-weight: 600;">Main Display</span>
+              {% endif %}
+
+              <form action="{{ url_for('admin_delete_photo', photo_id=photo.photo_id) }}" method="POST" style="margin: 0;" onsubmit="return confirm('Remove this photograph?');">
+                <button type="submit" class="btn btn-sm btn-danger-soft" style="font-size: 0.78rem;">
+                  Remove Photo
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+
+      {% if not photos %}
+      <div style="text-align: center; padding: 3rem; color: var(--text-muted); background: var(--bg-cream); border-radius: var(--radius-md);">
+        No photographs attached to this property yet. Use the upload box above to add images.
+      </div>
+      {% endif %}
+    </div>
+
+  </div>
+</div>
+{% endblock %}

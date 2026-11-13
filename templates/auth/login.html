@@ -1,52 +1,72 @@
 {% extends 'base.html' %}
 
-{% block title %}Sign In to NestKerala | Kerala's Rental Portal{% endblock %}
+{% block title %}Sign In | Nest Kerala – Rental Home Finder{% endblock %}
 
 {% block content %}
-<div class="container" style="max-width: 480px; padding: 4rem 1.25rem 6rem;">
+<div class="container" style="max-width: 500px; padding: 4rem 1.25rem 6rem;">
   <div style="background: white; border: 1px solid var(--border-light); border-radius: var(--radius-lg); padding: 2.5rem; box-shadow: var(--shadow-md);">
+    
+    <!-- Portal Welcome Header -->
     <div style="text-align: center; margin-bottom: 2rem;">
-      <img src="{{ url_for('static', filename='images/logo.svg') }}" alt="NestKerala" height="42" style="margin: 0 auto 1rem;">
-      <h1 style="font-size: 1.6rem; font-weight: 800; color: var(--primary-900);">Sign In to NestKerala</h1>
-      <p class="text-muted" style="font-size: 0.9rem;">Access your saved properties, owner dashboard, and enquiries.</p>
+      <img src="{{ url_for('static', filename='images/logo.svg') }}" alt="Nest Kerala" height="46" style="margin: 0 auto 1rem;">
+      <h1 style="font-size: 1.6rem; font-weight: 800; color: var(--primary-900);">Welcome to Nest Kerala</h1>
+      <p class="text-muted" style="font-size: 0.9rem;">Discover rental homes across all 14 districts of Kerala.</p>
     </div>
 
+    <!-- Navigation Options / Tabs -->
+    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.35rem; margin-bottom: 1.75rem; background: var(--bg-cream); padding: 0.35rem; border-radius: var(--radius-sm); border: 1px solid var(--border-light);">
+      <a href="{{ url_for('login') }}" class="btn btn-sm btn-primary-emerald" style="font-size: 0.82rem; padding: 0.45rem 0.2rem; text-align: center; font-weight: 700;">
+        User Login
+      </a>
+      <a href="{{ url_for('register') }}" class="btn btn-sm btn-ghost" style="font-size: 0.82rem; padding: 0.45rem 0.2rem; text-align: center; font-weight: 600; color: var(--text-sub);">
+        Register
+      </a>
+      <a href="{{ url_for('admin_login') }}" class="btn btn-sm btn-ghost" style="font-size: 0.82rem; padding: 0.45rem 0.2rem; text-align: center; font-weight: 600; color: var(--gold-600);">
+        Admin Login
+      </a>
+    </div>
+
+    <!-- User Login Form -->
     <form action="{{ url_for('login') }}" method="POST">
-      <div class="form-group">
-        <label class="form-label required">Email Address</label>
-        <input type="email" name="email" id="loginEmail" class="form-control" required placeholder="name@example.com">
+      <div class="form-group mb-3">
+        <label class="form-label required" style="font-weight: 600; font-size: 0.9rem;">Email Address</label>
+        <div style="position: relative;">
+          <input type="email" name="email" id="loginEmail" class="form-control" required placeholder="name@example.com" style="padding-left: 2.4rem;">
+          <svg style="position: absolute; left: 0.85rem; top: 50%; transform: translateY(-50%); color: var(--text-muted);" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+        </div>
       </div>
 
-      <div class="form-group">
-        <label class="form-label required">Password</label>
-        <input type="password" name="password" id="loginPassword" class="form-control" required placeholder="••••••••">
+      <div class="form-group mb-3">
+        <label class="form-label required" style="font-weight: 600; font-size: 0.9rem;">Password</label>
+        <div style="position: relative;">
+          <input type="password" name="password" id="loginPassword" class="form-control" required placeholder="••••••••" style="padding-left: 2.4rem;">
+          <svg style="position: absolute; left: 0.85rem; top: 50%; transform: translateY(-50%); color: var(--text-muted);" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+        </div>
       </div>
 
-      <button type="submit" class="btn btn-primary-emerald btn-block btn-lg" style="margin-top: 1.5rem;">
-        Sign In
+      <button type="submit" class="btn btn-primary-emerald btn-block btn-lg" style="margin-top: 1.5rem; width: 100%; font-weight: 700;">
+        Sign In to Nest Kerala
       </button>
     </form>
 
-    <!-- Quick Demo Logins for Instant Testing -->
+    <!-- Quick Demonstration Logins -->
     <div style="margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--border-light);">
-      <div style="font-size: 0.78rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.75rem; text-align: center;">
-        Quick Demonstration One-Click Logins
+      <div style="font-size: 0.76rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.75rem; text-align: center; letter-spacing: 0.05em;">
+        Demonstration One-Click Test Logins
       </div>
       <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-        <button type="button" class="btn btn-outline-emerald btn-sm" onclick="quickFill('admin@nestkerala.com', 'Admin@123')">
-          Demo Admin (Approvals, Moderation, Metrics)
+        <button type="button" class="btn btn-secondary-emerald btn-sm" onclick="quickFill('rahul.nair@techkerala.com', 'Tenant@123')">
+          Demo Tenant User (Rahul Nair)
         </button>
-        <button type="button" class="btn btn-secondary-emerald btn-sm" onclick="quickFill('kr.menon@keralahomes.in', 'Owner@123')">
-          Demo Property Owner (Kakkanad & Nadakkavu Villas)
-        </button>
-        <button type="button" class="btn btn-ghost btn-sm" style="border: 1px solid var(--border-light);" onclick="quickFill('rahul.nair@techkerala.com', 'Tenant@123')">
-          Demo Tenant (Rahul Nair - Enquiries & Visits)
-        </button>
+        <a href="{{ url_for('admin_login') }}" class="btn btn-outline-emerald btn-sm" style="text-align: center;">
+          Switch to Dedicated Admin Login &rarr;
+        </a>
       </div>
     </div>
 
+    <!-- Registration Link -->
     <div style="text-align: center; margin-top: 1.5rem; font-size: 0.9rem; color: var(--text-muted);">
-      Don't have an account? <a href="{{ url_for('register') }}" style="font-weight: 700;">Register here</a>
+      Don't have an account? <a href="{{ url_for('register') }}" style="font-weight: 700; color: var(--primary-800);">Register here</a>
     </div>
   </div>
 </div>
